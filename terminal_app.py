@@ -6,6 +6,7 @@ import os
 from PIL import Image, ImageTk
 import tkinter as tk
 import pyautogui
+import mss
 import difflib
 import re
 from ocr_processor import OCRProcessor
@@ -87,11 +88,15 @@ config = config_manager.data
 
 def capture_screen(region):
     """Capture a specific region of the screen"""
-    screenshot = pyautogui.screenshot(region=(
-        region['x'], region['y'], 
-        region['width'], region['height']
-    ))
-    return cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+    with mss.mss() as sct:
+        bbox = {
+            "left": region['x'],
+            "top": region['y'],
+            "width": region['width'],
+            "height": region['height']
+        }
+        screenshot = sct.grab(bbox)
+        return cv2.cvtColor(np.array(screenshot), cv2.COLOR_BGRA2BGR)
 
 def click_on_answer(region):
     """Click in the middle of the specified answer region"""
