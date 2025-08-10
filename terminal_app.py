@@ -7,6 +7,8 @@ from PIL import Image, ImageTk
 import tkinter as tk
 import pyautogui
 import mss
+pyautogui.PAUSE = 0
+pyautogui.MINIMUM_DURATION = 0
 import difflib
 import re
 from ocr_processor import OCRProcessor
@@ -130,12 +132,9 @@ def click_on_answer(region):
         # Method 2: PyAutoGUI fallback
         if not click_success:
             try:
-                # Move instantly and click with minimal delay
-                pyautogui.moveTo(center_x, center_y, duration=0)
-                pyautogui.mouseDown(x=center_x, y=center_y, button='left')
-                time.sleep(0.01)
-                pyautogui.mouseUp(x=center_x, y=center_y, button='left')
-                
+                pyautogui.click(x=center_x, y=center_y)
+                time.sleep(0.01)  # Minimal delay for reliability
+
                 # Log success
                 logging.info("Click performed using pyautogui")
                 click_success = True
