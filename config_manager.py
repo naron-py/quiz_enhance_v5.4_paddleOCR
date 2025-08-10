@@ -9,10 +9,20 @@ class ConfigManager:
     """Load and save configuration values from a JSON file."""
 
     path: str = "config.json"
-    data: Dict = field(default_factory=dict)
+    _data: Dict = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         self.load()
+
+    @property
+    def data(self) -> Dict:
+        """Access the configuration data.
+
+        Using a property ensures attribute access works even if the
+        underlying data dictionary hasn't been created yet, preventing
+        ``AttributeError`` during import time in consumers.
+        """
+        return self._data
 
     def default_config(self) -> Dict:
         return {
@@ -37,19 +47,19 @@ class ConfigManager:
     def load(self) -> Dict:
         if os.path.exists(self.path):
             with open(self.path, 'r') as f:
-                self.data = json.load(f)
+                self._data = json.load(f)
         else:
-            self.data = self.default_config()
+            self._data = self.default_config()
             self.save()
 
         # Ensure defaults for any missing fields
         defaults = self.default_config()
         for key, value in defaults.items():
-            if key not in self.data:
-                self.data[key] = value
-        return self.data
+            if key not in self._data:
+                self._data[key] = value
+        return self._data
 
     def save(self) -> None:
         os.makedirs(os.path.dirname(self.path) or '.', exist_ok=True)
         with open(self.path, 'w') as f:
-            json.dump(self.data, f, indent=4)
+            json.dump(self._data, f, indent=4)
