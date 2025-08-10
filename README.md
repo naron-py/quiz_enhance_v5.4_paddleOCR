@@ -30,3 +30,6 @@ python cli.py config    # show configuration
 
 Configuration is stored in `config.json`. Edit it manually or use commands in the interactive shell.
 
+Set the `log_level` field in `config.json` to control console logging. Use values like `"WARNING"` or `"ERROR"` to suppress
+informational messages.
+

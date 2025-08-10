@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
 
+from config_manager import ConfigManager
+
 # --- Removed sklearn imports as TF-IDF is no longer used ---
 # from sklearn.feature_extraction.text import TfidfVectorizer
 # from sklearn.metrics.pairwise import cosine_similarity
@@ -54,24 +56,30 @@ except ImportError:
     print("Install it using: pip install editdistance")
 # --- Optional Reporting Libraries end ---
 
-# --- Logging Setup ---
-log_file = Path("accuracy_evaluator.log")
+# --- Path and Logging Setup ---
+PROJECT_ROOT = Path(__file__).parent.resolve()
+CONFIG_FILE = PROJECT_ROOT / 'config.json'
+log_file = PROJECT_ROOT / 'accuracy_evaluator.log'
+
+config_manager = ConfigManager(str(CONFIG_FILE))
+config = config_manager.data
+
+log_level_name = config.get('log_level', 'INFO').upper()
+log_level = getattr(logging, log_level_name, logging.INFO)
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler(log_file),
-        logging.StreamHandler() # Also print logs to console
+        logging.StreamHandler()  # Also print logs to console
     ]
 )
 logger = logging.getLogger(__name__)
-# --- Logging Setup end ---
+# --- Path and Logging Setup end ---
 
 # --- Global Variables & Constants ---
-PROJECT_ROOT = Path(__file__).parent.resolve()
 ALL_CAPTURES_DIR = PROJECT_ROOT / "all_captures"
 REPORTS_DIR = PROJECT_ROOT / "accuracy_reports"
-CONFIG_FILE = PROJECT_ROOT / 'config.json'
 # --- Changed from DATABASE_FILE to GROUND_TRUTH_FILE ---
 GROUND_TRUTH_FILE = PROJECT_ROOT / 'compare.json' # Using compare.json as ground truth
 # --- Changed end ---

@@ -34,6 +34,23 @@ from rich.text import Text
 from rich.box import Box, ROUNDED, SIMPLE
 console = Console()
 
+# Configuration file path
+CONFIG_FILE = 'config.json'
+config_manager = ConfigManager(CONFIG_FILE)
+config = config_manager.data
+
+# Set up logging based on configuration
+log_level_name = config.get('log_level', 'INFO').upper()
+log_level = getattr(logging, log_level_name, logging.INFO)
+logging.basicConfig(
+    level=log_level,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('terminal_app.log'),
+        logging.StreamHandler()
+    ]
+)
+
 # Try to import torch for GPU memory management
 try:
     import torch
@@ -48,19 +65,6 @@ try:
 except ImportError:
     HAS_WIN32 = False
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('terminal_app.log'),
-        logging.StreamHandler()
-    ]
-)
-
-# Configuration file path
-CONFIG_FILE = 'config.json'
-
 # Global variables
 ocr_processor = None
 questions_df = None
@@ -69,7 +73,6 @@ recognized_text = {}
 best_match = None
 tfidf_vectorizer = None
 tfidf_matrix = None
-config = None
 timings = {}
 auto_click = False  # Whether to automatically click on the answer
 question_capture_count = 0 # New global counter for captured questions
@@ -84,9 +87,6 @@ capture_lock = threading.Lock()
 debug_dir = Path('debug_images')
 debug_dir.mkdir(exist_ok=True)
 # --- Debug Directory end ---
-
-config_manager = ConfigManager(CONFIG_FILE)
-config = config_manager.data
 
 def capture_screen(region):
     """Capture a specific region of the screen"""

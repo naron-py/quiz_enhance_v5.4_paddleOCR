@@ -42,5 +42,6 @@
     "filter_answer_choice_tags": false,
     "save_all_captured_images": false,
     "active_database": "all",
-    "filter_selected_pattern": true
+    "filter_selected_pattern": true,
+    "log_level": "INFO"
 }

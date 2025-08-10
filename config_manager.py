@@ -52,7 +52,8 @@ class ConfigManager:
             'filter_answer_choice_tags': False,
             'save_all_captured_images': False,
             'active_database': 'default',
-            'filter_selected_pattern': True
+            'filter_selected_pattern': True,
+            'log_level': 'INFO'
         }
 
     def load(self) -> Dict:
