@@ -747,7 +747,7 @@ def initialize():
     
     # Load questions data
     questions_df = load_questions_data()
-    
+
     if questions_df is not None:
         # Compute TF-IDF matrices for matching
         try:
@@ -755,8 +755,13 @@ def initialize():
             logging.info(f"TF-IDF matrix computed with {len(questions_df)} questions.")
         except Exception as e:
             logging.error(f"Error computing TF-IDF matrix: {e}", exc_info=True)
+        # Provide user feedback regardless of log level
+        console.print(
+            f"[bold green]Reload successful: Loaded [{active_database.capitalize()}] {len(questions_df)} questions.[/bold green]"
+        )
     else:
         logging.warning("Failed to load questions data.")
+        console.print("[bold red]Reload failed: No questions loaded.[/bold red]")
     
     logging.info(f"Initialization complete. Active database: {active_database}")
 
