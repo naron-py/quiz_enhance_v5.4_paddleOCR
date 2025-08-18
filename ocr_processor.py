@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Union
 from PIL import Image
 from doctr.io import DocumentFile
 from doctr.models import ocr_predictor
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 class OCRProcessor:
     def __init__(self):
@@ -109,7 +109,12 @@ class OCRProcessor:
         """Process multiple quiz regions (question and answers) using batch OCR for maximum GPU speed"""
         # Prepare images in order
         region_names = list(regions.keys())
-        images = [self.preprocess_image(regions[name]) for name in region_names]
+        
+        def _preprocess(name: str) -> np.ndarray:
+            return self.preprocess_image(regions[name])
+
+        with ThreadPoolExecutor() as executor:
+            images = list(executor.map(_preprocess, region_names))
         results = {}
         try:
             # Batch OCR
