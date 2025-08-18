@@ -17,6 +17,7 @@ class OCRProcessor:
         self.model = ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
         if torch.cuda.is_available():
             self.model = self.model.cuda()
+            self.model.half()
             self.logger.info("Using GPU for OCR")
         else:
             self.logger.info("Using CPU for OCR")
@@ -82,7 +83,8 @@ class OCRProcessor:
             processed_image = self.preprocess_image(image)
             
             # Perform OCR using docTR
-            result = self.model([processed_image])
+            with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
+                result = self.model([processed_image])
             
             # Extract text from all blocks
             text_parts = []
@@ -111,7 +113,8 @@ class OCRProcessor:
         results = {}
         try:
             # Batch OCR
-            ocr_results = self.model(images)
+            with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
+                ocr_results = self.model(images)
             for idx, page in enumerate(ocr_results.pages):
                 text_parts = []
                 for block in page.blocks:
