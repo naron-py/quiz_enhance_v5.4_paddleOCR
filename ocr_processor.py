@@ -9,11 +9,14 @@ from PIL import Image
 from doctr.io import DocumentFile
 from doctr.models import ocr_predictor
 from concurrent.futures import ThreadPoolExecutor
+from config_manager import ConfigManager
 
 class OCRProcessor:
-    def __init__(self):
+    def __init__(self, config: Optional[Dict] = None):
         """Initialize the OCR processor with docTR"""
         self.logger = logging.getLogger(__name__)
+        self.config = config if config is not None else ConfigManager().data
+        self.scale_factor = self.config.get('image_scale_factor', 1.0)
         self.model = ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
         if torch.cuda.is_available():
             self.model = self.model.cuda()
@@ -45,6 +48,15 @@ class OCRProcessor:
                 pass
             else:
                 raise ValueError(f"Unexpected image shape: {image_np.shape}")
+
+            # Optionally resize to limit dimensions
+            if self.scale_factor and self.scale_factor != 1.0:
+                new_size = (
+                    int(image_np.shape[1] * self.scale_factor),
+                    int(image_np.shape[0] * self.scale_factor)
+                )
+                interpolation = cv2.INTER_AREA if self.scale_factor < 1.0 else cv2.INTER_LINEAR
+                image_np = cv2.resize(image_np, new_size, interpolation=interpolation)
 
             # Enhance contrast using CLAHE
             lab = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB)

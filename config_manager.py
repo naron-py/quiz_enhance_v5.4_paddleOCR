@@ -53,7 +53,8 @@ class ConfigManager:
             'save_all_captured_images': False,
             'active_database': 'default',
             'filter_selected_pattern': True,
-            'log_level': 'INFO'
+            'log_level': 'INFO',
+            'image_scale_factor': 1.0
         }
 
     def load(self) -> Dict:
