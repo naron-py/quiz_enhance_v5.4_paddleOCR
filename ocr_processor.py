@@ -21,9 +21,15 @@ class OCRProcessor:
         self.model = ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
         if torch.cuda.is_available():
             self.model = self.model.cuda()
+            self.model.eval()
             self.logger.info("Using GPU for OCR")
         else:
+            self.model = self.model.cpu()
+            self.model.eval()
             self.logger.info("Using CPU for OCR")
+        self.inference_context = (
+            torch.inference_mode if hasattr(torch, "inference_mode") else torch.no_grad
+        )
         self.debug_dir = Path('debug_images')
         self.debug_dir.mkdir(exist_ok=True)
         
@@ -119,11 +125,12 @@ class OCRProcessor:
                 return ""
 
             # Perform OCR using docTR
-            if torch.cuda.is_available():
-                with torch.amp.autocast('cuda'):
+            with self.inference_context():
+                if torch.cuda.is_available():
+                    with torch.amp.autocast('cuda'):
+                        result = self.model([processed_image])
+                else:
                     result = self.model([processed_image])
-            else:
-                result = self.model([processed_image])
             
             # Extract text from all blocks
             text_parts = []
@@ -178,11 +185,12 @@ class OCRProcessor:
 
         try:
             # Batch OCR only on valid images
-            if torch.cuda.is_available():
-                with torch.amp.autocast('cuda'):
+            with self.inference_context():
+                if torch.cuda.is_available():
+                    with torch.amp.autocast('cuda'):
+                        ocr_results = self.model(valid_images)
+                else:
                     ocr_results = self.model(valid_images)
-            else:
-                ocr_results = self.model(valid_images)
 
             if len(ocr_results.pages) != len(valid_names):
                 self.logger.warning(
