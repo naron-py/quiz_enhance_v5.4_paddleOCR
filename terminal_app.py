@@ -583,19 +583,11 @@ def capture_and_process():
                     match_q = best_match_entry['question']
                     match_a = best_match_entry['answer']
                     score = best_match_entry['score']
-                    
+
                     logging.info(f"Match found: DB Q='{match_q}', DB A='{match_a}', Score={score:.3f}, Choice={best_match_choice}, Similarity={best_match_similarity:.3f}")
-                    
-                    # Create a match result panel
-                    match_panel = Panel(
-                        f"[bold white]Database Answer:[/bold white] [bold green]{match_a}[/bold green]\n"
-                        f"[bold white]Question Match:[/bold white] {match_q}\n"
-                        f"[bold white]Best Choice:[/bold white] [bold cyan]{best_match_choice}[/bold cyan] (Similarity: {best_match_similarity:.3f})",
-                        title="[bold green]Match Found[/bold green]",
-                        border_style="green"
-                    )
-                    console.print(match_panel)
-                    
+
+                    auto_click_console_message = None
+
                     # Auto-click if enabled
                     if auto_click:
                         current_question = ocr_question_text or ""
@@ -614,14 +606,27 @@ def capture_and_process():
                         if should_click:
                             click_start = time.time()
                             if click_on_answer(config['answer_regions'][best_match_choice]):
-                                console.print(f"[green]Auto-clicked on region {best_match_choice}.[/green]")
+                                auto_click_console_message = f"[green]Auto-clicked on region {best_match_choice}.[/green]"
                                 logging.info(f"Auto-clicked on region {best_match_choice}.")
                             else:
-                                console.print(f"[bold red]Auto-click failed for region:[/bold red] {best_match_choice}")
+                                auto_click_console_message = f"[bold red]Auto-click failed for region:[/bold red] {best_match_choice}"
                                 logging.warning(f"Auto-click failed for region {best_match_choice}")
                             last_auto_clicked_question = current_question
                             last_auto_clicked_choice = best_match_choice
                             timings['auto_click'] = time.time() - click_start
+
+                    # Create a match result panel
+                    match_panel = Panel(
+                        f"[bold white]Database Answer:[/bold white] [bold green]{match_a}[/bold green]\n"
+                        f"[bold white]Question Match:[/bold white] {match_q}\n"
+                        f"[bold white]Best Choice:[/bold white] [bold cyan]{best_match_choice}[/bold cyan] (Similarity: {best_match_similarity:.3f})",
+                        title="[bold green]Match Found[/bold green]",
+                        border_style="green"
+                    )
+                    console.print(match_panel)
+
+                    if auto_click_console_message:
+                        console.print(auto_click_console_message)
                 else:
                     # Question matched but couldn't find a matching answer choice for any potential answer
                     logging.warning(f"Found {len(matching_entries)} question matches but could not reliably identify any matching answer choice.")
