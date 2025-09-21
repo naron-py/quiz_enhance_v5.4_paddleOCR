@@ -77,6 +77,8 @@ question_capture_count = 0 # New global counter for captured questions
 active_database = "default"  # Tracks which database is currently loaded
 spam_capture_mode = False  # Flag for controlling continuous spam capture mode
 spam_capture_thread = None  # Thread for running spam capture
+last_auto_clicked_question = None  # Tracks last question text that triggered auto click
+last_auto_clicked_choice = None  # Tracks last answer choice that triggered auto click
 
 # For thread safety
 capture_lock = threading.Lock()
@@ -85,6 +87,13 @@ capture_lock = threading.Lock()
 debug_dir = Path('debug_images')
 debug_dir.mkdir(exist_ok=True)
 # --- Debug Directory end ---
+
+def reset_last_auto_clicked_pair():
+    """Reset the stored question/choice pair used for auto-click tracking."""
+    global last_auto_clicked_question, last_auto_clicked_choice
+    last_auto_clicked_question = None
+    last_auto_clicked_choice = None
+    logging.debug("Reset last auto-clicked question and choice.")
 
 def capture_screen(region):
     """Capture a specific region of the screen"""
@@ -448,7 +457,7 @@ def filter_selected_pattern(text):
 def capture_and_process():
     """Main function to capture, process, and find match"""
     start_total_time = time.time()
-    global captured_images, recognized_text, best_match, question_capture_count
+    global captured_images, recognized_text, best_match, question_capture_count, last_auto_clicked_question, last_auto_clicked_choice
     timings.clear() # Reset timings for this cycle
     
     with capture_lock:
@@ -465,6 +474,7 @@ def capture_and_process():
         except Exception as e:
             logging.error(f"Error during screen capture: {e}", exc_info=True)
             console.print(f"[bold red]Error during screen capture:[/bold red] {e}")
+            reset_last_auto_clicked_pair()
             return
 
         # 2. OCR Processing
@@ -518,6 +528,7 @@ def capture_and_process():
         except Exception as e:
             logging.error(f"Error during OCR processing: {e}", exc_info=True)
             console.print(f"[bold red]Error during OCR processing:[/bold red] {e}")
+            reset_last_auto_clicked_pair()
             return
             
         # Increment capture count AFTER successful capture and OCR
@@ -580,14 +591,30 @@ def capture_and_process():
                     
                     # Auto-click if enabled
                     if auto_click:
-                        click_start = time.time()
-                        if click_on_answer(config['answer_regions'][best_match_choice]):
-                            console.print(f"[green]Auto-clicked on region {best_match_choice}.[/green]")
-                            logging.info(f"Auto-clicked on region {best_match_choice}.")
-                        else:
-                            console.print(f"[bold red]Auto-click failed for region:[/bold red] {best_match_choice}")
-                            logging.warning(f"Auto-click failed for region {best_match_choice}")
-                        timings['auto_click'] = time.time() - click_start
+                        current_question = ocr_question_text or ""
+                        should_click = True
+                        if (
+                            last_auto_clicked_question == current_question
+                            and last_auto_clicked_choice == best_match_choice
+                        ):
+                            should_click = False
+                            logging.info(
+                                "Skipping auto-click for question '%s' and choice '%s' because it matches the last auto-clicked pair.",
+                                current_question,
+                                best_match_choice,
+                            )
+
+                        if should_click:
+                            click_start = time.time()
+                            if click_on_answer(config['answer_regions'][best_match_choice]):
+                                console.print(f"[green]Auto-clicked on region {best_match_choice}.[/green]")
+                                logging.info(f"Auto-clicked on region {best_match_choice}.")
+                            else:
+                                console.print(f"[bold red]Auto-click failed for region:[/bold red] {best_match_choice}")
+                                logging.warning(f"Auto-click failed for region {best_match_choice}")
+                            last_auto_clicked_question = current_question
+                            last_auto_clicked_choice = best_match_choice
+                            timings['auto_click'] = time.time() - click_start
                 else:
                     # Question matched but couldn't find a matching answer choice for any potential answer
                     logging.warning(f"Found {len(matching_entries)} question matches but could not reliably identify any matching answer choice.")
@@ -620,9 +647,10 @@ def capture_and_process():
                     # Save fullscreen capture for question matched but no choice matched
                     if config.get('capture_fullscreen_on_nomatch', False):
                         capture_and_save_fullscreen_on_nomatch()
+                    reset_last_auto_clicked_pair()
             else: # No matching questions found
                 logging.warning(f"No database match found for OCR question: '{ocr_question_text}'")
-                
+
                 # Error panel for no match
                 no_match_panel = Panel(
                     "[red]Database Answer (from initial question match): [italic]None[/italic][/red]",
@@ -634,12 +662,14 @@ def capture_and_process():
                 # Optional: Trigger fullscreen capture if enabled
                 if config.get('capture_fullscreen_on_nomatch', False):
                      capture_and_save_fullscreen_on_nomatch()
+                reset_last_auto_clicked_pair()
         else:
             match_end = time.time() # Still record time even if no match attempted
             timings['matching'] = match_end - match_start
             logging.warning("Skipping match finding: OCR question text is empty or database/TF-IDF not loaded.")
             # Wrap console print in try-except to handle potential NoneType during shutdown
             console.print("[yellow]Skipping match finding (Empty OCR / No DB?).[/yellow]")
+            reset_last_auto_clicked_pair()
 
     # Clear GPU memory periodically
     if question_capture_count % 5 == 0: # Adjust frequency as needed
@@ -718,7 +748,8 @@ def toggle_spam_capture_mode():
         console.print("[bold green]Spam capture mode enabled[/bold green]")
     else:
         console.print("[bold yellow]Spam capture mode disabled[/bold yellow]")
-        
+        reset_last_auto_clicked_pair()
+
     return spam_capture_mode
 
 
