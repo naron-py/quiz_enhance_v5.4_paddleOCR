@@ -553,8 +553,6 @@ def capture_and_process():
         if ocr_question_text and questions_df is not None and tfidf_vectorizer is not None:
             # Using the new function to find all matching questions
             matching_entries = find_all_matching_questions(ocr_question_text, questions_df, tfidf_vectorizer, tfidf_matrix)
-            match_end = time.time()
-            timings['matching'] = match_end - match_start
             
             if matching_entries:
                 # First try exact match with answers
@@ -672,12 +670,14 @@ def capture_and_process():
                 if config.get('capture_fullscreen_on_nomatch', False):
                      capture_and_save_fullscreen_on_nomatch()
                 reset_last_auto_clicked_pair()
-        else:
-            match_end = time.time() # Still record time even if no match attempted
+            match_end = time.time()
             timings['matching'] = match_end - match_start
+        else:
             logging.warning("Skipping match finding: OCR question text is empty or database/TF-IDF not loaded.")
             # Wrap console print in try-except to handle potential NoneType during shutdown
             console.print("[yellow]Skipping match finding (Empty OCR / No DB?).[/yellow]")
+            match_end = time.time() # Still record time even if no match attempted
+            timings['matching'] = match_end - match_start
             reset_last_auto_clicked_pair()
 
     # Clear GPU memory periodically
