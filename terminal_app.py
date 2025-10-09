@@ -23,7 +23,7 @@ import gc  # For garbage collection
 from datetime import datetime # Added for timestamped filenames
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Set, Tuple
 
 # Import Rich for colored terminal output
 from rich.console import Console
@@ -106,6 +106,7 @@ last_auto_clicked_question = None  # Tracks last question text that triggered au
 last_auto_clicked_choice = None  # Tracks last answer choice that triggered auto click
 last_processed_question = None  # Tracks the last OCR question we processed
 last_processed_choice = None  # Tracks the last answer choice processed for caching
+spam_capture_seen_prompts: Set[Tuple[str, Tuple[str, str, str, str]]] = set()
 
 # For thread safety
 capture_lock = threading.Lock()
@@ -506,7 +507,7 @@ def capture_and_process():
     start_total_time = time.time()
     global captured_images, recognized_text, best_match, question_capture_count, \
         last_auto_clicked_question, last_auto_clicked_choice, last_processed_question, \
-        last_processed_choice
+        last_processed_choice, spam_capture_seen_prompts
     timings.clear() # Reset timings for this cycle
     
     with capture_lock:
@@ -573,41 +574,60 @@ def capture_and_process():
             for label in ['A', 'B', 'C', 'D']:
                  if captured_images.get(label) is not None:
                      regions_to_ocr[label] = captured_images[label]
-            
+
             # Perform OCR using the batch method
             ocr_texts = ocr_processor.process_quiz_regions(regions_to_ocr)
-            
+
             # Store results
             recognized_text['question'] = ocr_texts.get('question', '')
             for label in ['A', 'B', 'C', 'D']:
                  recognized_text[label] = ocr_texts.get(label, '')
-                 
+
                  # Optional: Filter out A./B./etc. tags if enabled
                  if config.get('filter_answer_choice_tags', True):
                       # Simple filter: remove first 2 chars if they match pattern like "A."
                       if len(recognized_text[label]) > 2 and recognized_text[label][0].isalpha() and recognized_text[label][1] in '. ':
                           recognized_text[label] = recognized_text[label][2:].strip()
-                 
+
                  # Filter out [number] selected pattern if enabled
                  if config.get('filter_selected_pattern', True):
                      recognized_text[label] = filter_selected_pattern(recognized_text[label])
-                          
+
+            deduplicate_spam_capture = config.get('spam_capture_deduplication', True)
+
+            if spam_capture_mode and deduplicate_spam_capture:
+                question_text = (recognized_text.get('question') or '').strip()
+                if question_text:
+                    normalized_question = question_text.lower()
+                    normalized_answers = tuple(
+                        (recognized_text.get(label) or '').strip().lower()
+                        for label in ['A', 'B', 'C', 'D']
+                    )
+
+                    prompt_key = (normalized_question, normalized_answers)
+
+                    if prompt_key in spam_capture_seen_prompts:
+                        logging.debug("Duplicate OCR prompt detected during spam capture; skipping output.")
+                        return
+
+                    spam_capture_seen_prompts.add(prompt_key)
+
             ocr_end = time.time()
             timings['ocr'] = ocr_end - ocr_start
             logging.info(f"OCR processing complete. Question: {recognized_text.get('question', 'N/A')}")
-            
+
             # Create and display a table with OCR results
             console.print(f"[cyan][{question_capture_count}] Question:[/cyan] {recognized_text.get('question', '[OCR Failed]')}")
-            
+
             if config.get('show_ocr_answer_choices_terminal', True):
                 # Create a Rich table for options
                 table = Table(show_header=True, box=ROUNDED, border_style="cyan")
                 table.add_column("Choice", style="bold cyan", justify="center")
                 table.add_column("Text", style="white")
-                
+
                 for label in ['A', 'B', 'C', 'D']:
                     table.add_row(label, recognized_text.get(label, '[OCR Failed]'))
-                
+
                 console.print(table)
                     
         except Exception as e:
@@ -883,7 +903,7 @@ def spam_capture_loop():
 
 def toggle_spam_capture_mode():
     """Toggle the spam capture mode on/off"""
-    global spam_capture_mode, spam_capture_thread
+    global spam_capture_mode, spam_capture_thread, spam_capture_seen_prompts
     
     # Toggle the mode
     spam_capture_mode = not spam_capture_mode
@@ -897,6 +917,7 @@ def toggle_spam_capture_mode():
             spam_capture_thread.start()
         console.print("[bold green]Spam capture mode enabled[/bold green]")
     else:
+        spam_capture_seen_prompts.clear()
         console.print("[bold yellow]Spam capture mode disabled[/bold yellow]")
 
     return spam_capture_mode
