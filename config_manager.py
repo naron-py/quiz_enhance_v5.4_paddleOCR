@@ -56,12 +56,16 @@ class ConfigManager:
             'log_level': 'INFO',
             'image_scale_factor': 1.0,
             'require_cuda': False,
+            'tfidf_cache_enabled': True,
+            'tfidf_cache_dir': '.cache',
             'hotkeys': {
                 'capture': 'f2',
                 'reload': 'f3',
                 'autoclick': 'f9',
                 'autoscan': 'f10'
-            }
+            },
+            'answer_similarity_close_margin': 0.05,
+            'self_test_cases': []
         }
 
     def load(self) -> Dict:

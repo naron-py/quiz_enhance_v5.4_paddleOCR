@@ -13,6 +13,7 @@ import difflib
 import re
 from config_manager import ConfigManager
 import time
+import pickle
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import threading
@@ -23,7 +24,7 @@ import gc  # For garbage collection
 from datetime import datetime # Added for timestamped filenames
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 # Import Rich for colored terminal output
 from rich.console import Console
@@ -276,8 +277,14 @@ def switch_database(db_name):
         
         # Recompute TF-IDF Matrix
         try:
-            tfidf_vectorizer, tfidf_matrix = compute_tfidf_matrix(questions_df)
-            logging.info("TF-IDF matrix computed successfully.")
+            cached = load_tfidf_cache(active_database)
+            if cached:
+                tfidf_vectorizer, tfidf_matrix = cached
+                logging.info("TF-IDF matrix loaded from cache.")
+            else:
+                tfidf_vectorizer, tfidf_matrix = compute_tfidf_matrix(questions_df)
+                save_tfidf_cache(active_database, tfidf_vectorizer, tfidf_matrix)
+                logging.info("TF-IDF matrix computed successfully.")
             return True
         except Exception as e:
             console.print(f"[bold yellow]Warning:[/bold yellow] Failed to compute TF-IDF matrix: {e}. Matching may be less reliable.")
@@ -290,8 +297,9 @@ def switch_database(db_name):
 
 def compute_tfidf_matrix(questions_df):
     """Compute TF-IDF matrix for all questions"""
-    vectorizer = TfidfVectorizer().fit(questions_df['question'].astype(str))
-    tfidf_matrix = vectorizer.transform(questions_df['question'].astype(str))
+    normalized_questions = questions_df['question'].astype(str).map(normalize_question_text)
+    vectorizer = TfidfVectorizer().fit(normalized_questions)
+    tfidf_matrix = vectorizer.transform(normalized_questions)
     return vectorizer, tfidf_matrix
 
 def find_best_match_tfidf(text, questions_df, vectorizer, tfidf_matrix):
@@ -299,11 +307,12 @@ def find_best_match_tfidf(text, questions_df, vectorizer, tfidf_matrix):
     if questions_df is None or text is None:
         return None, None, 0
     try:
-        query_vec = vectorizer.transform([text])
+        query_vec = vectorizer.transform([normalize_question_text(text)])
         similarities = cosine_similarity(query_vec, tfidf_matrix).flatten()
         best_idx = similarities.argmax()
         best_score = similarities[best_idx]
-        if best_score >= 0.85:  # Lower threshold for TF-IDF
+        tfidf_threshold = config.get('tfidf_threshold', 0.85)
+        if best_score >= tfidf_threshold:
             row = questions_df.iloc[best_idx]
             return row['question'], row['answer'], best_score
     except Exception as e:
@@ -317,7 +326,7 @@ def find_all_matching_questions(text, questions_df, vectorizer, tfidf_matrix, th
         return matching_entries
     
     try:
-        query_vec = vectorizer.transform([text])
+        query_vec = vectorizer.transform([normalize_question_text(text)])
         similarities = cosine_similarity(query_vec, tfidf_matrix).flatten()
         
         # Find all indices where similarity is above threshold
@@ -379,6 +388,123 @@ def normalize_match_text(text: Optional[str]) -> str:
     text = re.sub(r'[^a-z0-9\s]', ' ', text)
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
+
+def normalize_question_text(text: Optional[str]) -> str:
+    """Normalize OCR question text for TF-IDF matching."""
+    return normalize_match_text(text)
+
+def get_database_source_files(db_setting: str) -> List[str]:
+    """Return CSV files used for the active database."""
+    if db_setting == 'magic':
+        return ['HPMA_data_magic.csv']
+    if db_setting == 'muggle':
+        return ['HPMA_data_muggle.csv']
+    if db_setting == 'all':
+        return ['HPMA_data_magic.csv', 'HPMA_data_muggle.csv']
+    if os.path.exists('HPMA_data.csv'):
+        return ['HPMA_data.csv']
+    return ['HPMA_data_magic.csv', 'HPMA_data_muggle.csv']
+
+def get_tfidf_cache_path(db_setting: str) -> Path:
+    """Build a cache path for TF-IDF assets."""
+    cache_dir = Path(config.get('tfidf_cache_dir', '.cache'))
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / f"tfidf_{db_setting}.pkl"
+
+def load_tfidf_cache(db_setting: str):
+    """Load TF-IDF artifacts from cache if valid."""
+    if not config.get('tfidf_cache_enabled', True):
+        return None
+    cache_path = get_tfidf_cache_path(db_setting)
+    if not cache_path.exists():
+        return None
+    try:
+        with cache_path.open('rb') as handle:
+            payload = pickle.load(handle)
+        sources = payload.get('sources', {})
+        for source in get_database_source_files(db_setting):
+            current_mtime = os.path.getmtime(source) if os.path.exists(source) else None
+            if sources.get(source) != current_mtime:
+                return None
+        return payload.get('vectorizer'), payload.get('matrix')
+    except Exception as e:
+        logging.warning("Failed to load TF-IDF cache: %s", e)
+        return None
+
+def save_tfidf_cache(db_setting: str, vectorizer, matrix) -> None:
+    """Persist TF-IDF artifacts to cache."""
+    if not config.get('tfidf_cache_enabled', True):
+        return
+    sources = {}
+    for source in get_database_source_files(db_setting):
+        sources[source] = os.path.getmtime(source) if os.path.exists(source) else None
+    payload = {"vectorizer": vectorizer, "matrix": matrix, "sources": sources}
+    cache_path = get_tfidf_cache_path(db_setting)
+    try:
+        with cache_path.open('wb') as handle:
+            pickle.dump(payload, handle)
+    except Exception as e:
+        logging.warning("Failed to save TF-IDF cache: %s", e)
+
+def select_best_answer_choice(matching_entries, recognized_text, answer_similarity_threshold):
+    """Pick the best answer choice across all matching entries."""
+    best = None
+    best_rank = None
+    labels = ['A', 'B', 'C', 'D']
+    normalized_choices = {
+        label: normalize_match_text(recognized_text.get(label, ''))
+        for label in labels
+    }
+
+    for entry in matching_entries:
+        normalized_match_a = normalize_match_text(entry.get('answer'))
+        if not normalized_match_a:
+            continue
+
+        exact_choice = None
+        for label, normalized_choice in normalized_choices.items():
+            if normalized_choice and normalized_choice == normalized_match_a:
+                exact_choice = label
+                break
+
+        choice_scores = {}
+        for label, normalized_choice in normalized_choices.items():
+            if normalized_choice:
+                choice_scores[label] = get_text_similarity(normalized_match_a, normalized_choice)
+
+        if exact_choice:
+            candidate_choice = exact_choice
+            candidate_similarity = 1.0
+            candidate_exact = True
+        else:
+            candidate_choice, candidate_similarity = max(
+                choice_scores.items(),
+                key=lambda item: item[1],
+                default=(None, -1.0)
+            )
+            candidate_exact = False
+
+        if candidate_choice is None:
+            continue
+
+        candidate_rank = (
+            1 if candidate_exact else 0,
+            candidate_similarity,
+            entry.get('score', 0.0),
+        )
+        if best is None or candidate_rank > best_rank:
+            best = {
+                "entry": entry,
+                "choice": candidate_choice,
+                "similarity": candidate_similarity,
+                "exact": candidate_exact,
+                "choice_scores": choice_scores,
+            }
+            best_rank = candidate_rank
+
+    if best and best["similarity"] >= answer_similarity_threshold:
+        return best
+    return best
 
 def find_best_match(text, q_df):
     """Find best match using TF-IDF and then refine with similarity"""
@@ -770,74 +896,35 @@ def capture_and_process():
             last_processed_question = current_question
             last_processed_choice = None
             # Using the new function to find all matching questions
-            matching_entries = find_all_matching_questions(ocr_question_text, questions_df, tfidf_vectorizer, tfidf_matrix)
+            tfidf_threshold = config.get('tfidf_threshold', 0.85)
+            matching_entries = find_all_matching_questions(
+                ocr_question_text,
+                questions_df,
+                tfidf_vectorizer,
+                tfidf_matrix,
+                threshold=tfidf_threshold
+            )
 
             if matching_entries:
-                # First try exact match with answers
-                ANSWER_SIMILARITY_THRESHOLD = 0.7
-                best_match_entry = None
+                answer_similarity_threshold = config.get('answer_similarity_threshold', 0.7)
+                best = select_best_answer_choice(matching_entries, recognized_text, answer_similarity_threshold)
                 best_match_choice = None
-                best_match_similarity = -1.0
-                match_short_circuited = False
+                best_match_similarity = 0.0
 
-                for entry in matching_entries:
-                    match_q = entry['question']
-                    match_a = entry['answer']
-                    score = entry['score']
-                    normalized_match_a = normalize_match_text(match_a)
-                    normalized_choices = {
-                        label: normalize_match_text(recognized_text.get(label, ''))
-                        for label in ['A', 'B', 'C', 'D']
-                    }
-
-                    # Prefer exact matches after normalization to avoid near-identical wrong picks.
-                    exact_choice = None
-                    if normalized_match_a:
-                        for label, normalized_choice in normalized_choices.items():
-                            if normalized_choice and normalized_choice == normalized_match_a:
-                                exact_choice = label
-                                break
-                    if exact_choice:
-                        best_match_entry = entry
-                        best_match_choice = exact_choice
-                        best_match_similarity = 1.0
-                        match_short_circuited = True
-                        logging.info(
-                            "Exact answer match found for choice %s; short-circuiting remaining comparisons.",
-                            exact_choice,
-                        )
-                        break
-
-                    # Try to find matching answer choice for this potential answer
-                    for label in ['A', 'B', 'C', 'D']:
-                        ocr_answer_text = normalized_choices.get(label) or ""
-                        if ocr_answer_text and normalized_match_a:
-                            similarity = get_text_similarity(normalized_match_a, ocr_answer_text)
-                            if similarity > best_match_similarity:
-                                best_match_similarity = similarity
-                                best_match_choice = label
-                                best_match_entry = entry
-                            if similarity >= ANSWER_SIMILARITY_THRESHOLD:
-                                match_short_circuited = True
-                                logging.info(
-                                    "Answer similarity %.3f met or exceeded threshold %.3f for choice %s; short-circuiting remaining comparisons.",
-                                    similarity,
-                                    ANSWER_SIMILARITY_THRESHOLD,
-                                    label,
-                                )
-                                break
-                    if match_short_circuited:
-                        break
-
-                if best_match_entry and best_match_choice and best_match_similarity >= ANSWER_SIMILARITY_THRESHOLD:
+                if best and best.get("choice") and best.get("similarity", 0.0) >= answer_similarity_threshold:
                     # Found a good match both for question and answer
-                    match_q = best_match_entry['question']
-                    match_a = best_match_entry['answer']
-                    score = best_match_entry['score']
-
-                    short_circuit_note = " [short-circuited after threshold match]" if match_short_circuited else ""
+                    match_q = best["entry"]['question']
+                    match_a = best["entry"]['answer']
+                    score = best["entry"]['score']
+                    best_match_choice = best["choice"]
+                    best_match_similarity = best["similarity"]
                     logging.info(
-                        f"Match found: DB Q='{match_q}', DB A='{match_a}', Score={score:.3f}, Choice={best_match_choice}, Similarity={best_match_similarity:.3f}{short_circuit_note}"
+                        "Match found: DB Q='%s', DB A='%s', Score=%.3f, Choice=%s, Similarity=%.3f",
+                        match_q,
+                        match_a,
+                        score,
+                        best_match_choice,
+                        best_match_similarity
                     )
 
                     auto_click_console_message = None
@@ -893,8 +980,13 @@ def capture_and_process():
                     
                     # For debugging, show the best we found even if below threshold
                     debug_info = ""
-                    if best_match_entry:
-                        debug_info = f"Best was '{best_match_entry['answer']}' matching to choice {best_match_choice} with similarity {best_match_similarity:.3f}"
+                    if best and best.get("entry"):
+                        best_match_choice = best.get("choice")
+                        best_match_similarity = best.get("similarity", 0.0)
+                        debug_info = (
+                            f"Best was '{best['entry']['answer']}' matching to choice "
+                            f"{best_match_choice} with similarity {best_match_similarity:.3f}"
+                        )
                     
                     # Create a table for possible answers
                     possible_answers = Table(show_header=True, box=ROUNDED, title="[bold red]Possible Database Answers[/bold red]", border_style="red")
@@ -908,7 +1000,8 @@ def capture_and_process():
                     # Error panel
                     error_panel = Panel(
                         f"Question: '{matching_entries[0]['question']}'\n"
-                        f"Highest Choice Similarity: [bold red]{best_match_similarity:.3f}[/bold red] for {best_match_choice} (threshold: {ANSWER_SIMILARITY_THRESHOLD})",
+                        f"Highest Choice Similarity: [bold red]{best_match_similarity:.3f}[/bold red] for {best_match_choice} "
+                        f"(threshold: {answer_similarity_threshold})",
                         title="[bold red]❌ Matching Question But No Matching Choice Found[/bold red]",
                         border_style="red"
                     )
@@ -920,6 +1013,21 @@ def capture_and_process():
                     if config.get('capture_fullscreen_on_nomatch', False):
                         capture_and_save_fullscreen_on_nomatch()
                     reset_last_auto_clicked_pair()
+
+                if best and best.get("choice_scores"):
+                    close_margin = config.get('answer_similarity_close_margin', 0.05)
+                    scored = sorted(best["choice_scores"].items(), key=lambda item: item[1], reverse=True)
+                    top3 = scored[:3]
+                    if top3:
+                        top_scores = ", ".join(f"{label}:{score:.3f}" for label, score in top3)
+                        gap = top3[0][1] - (top3[1][1] if len(top3) > 1 else 0.0)
+                        if best["similarity"] < answer_similarity_threshold or gap <= close_margin:
+                            logging.info(
+                                "Near match. Top choice similarities: %s (gap %.3f, threshold %.3f)",
+                                top_scores,
+                                gap,
+                                answer_similarity_threshold
+                            )
             else: # No matching questions found
                 logging.warning(f"No database match found for OCR question: '{ocr_question_text}'")
 
@@ -1084,8 +1192,14 @@ def initialize():
     if questions_df is not None:
         # Compute TF-IDF matrices for matching
         try:
-            tfidf_vectorizer, tfidf_matrix = compute_tfidf_matrix(questions_df)
-            logging.info(f"TF-IDF matrix computed with {len(questions_df)} questions.")
+            cached = load_tfidf_cache(active_database)
+            if cached:
+                tfidf_vectorizer, tfidf_matrix = cached
+                logging.info(f"TF-IDF matrix loaded from cache with {len(questions_df)} questions.")
+            else:
+                tfidf_vectorizer, tfidf_matrix = compute_tfidf_matrix(questions_df)
+                save_tfidf_cache(active_database, tfidf_vectorizer, tfidf_matrix)
+                logging.info(f"TF-IDF matrix computed with {len(questions_df)} questions.")
         except Exception as e:
             logging.error(f"Error computing TF-IDF matrix: {e}", exc_info=True)
         # Provide user feedback regardless of log level
@@ -1426,6 +1540,95 @@ def run_accuracy_evaluator_script():
     except Exception as e:
         print(f"An unexpected error occurred while running accuracy_evaluator.py: {e}")
         logging.error(f"Failed to run accuracy_evaluator.py: {e}", exc_info=True)
+
+def run_self_test():
+    """Run OCR + matching self-tests on configured images."""
+    cases = config.get('self_test_cases', [])
+    if not cases:
+        console.print("[yellow]No self-test cases configured. Add entries to self_test_cases in config.json.[/yellow]")
+        return
+
+    local_ocr = ocr_processor
+    if local_ocr is None:
+        try:
+            from ocr_processor import OCRProcessor
+            local_ocr = OCRProcessor()
+        except Exception as e:
+            console.print(f"[bold red]Failed to initialize OCR processor for self-test:[/bold red] {e}")
+            return
+
+    passed = 0
+    failed = 0
+    tfidf_threshold = config.get('tfidf_threshold', 0.85)
+    answer_similarity_threshold = config.get('answer_similarity_threshold', 0.7)
+
+    for idx, case in enumerate(cases, 1):
+        name = case.get('name', f'case_{idx}')
+        question_image = case.get('question_image')
+        answers = case.get('answers', {})
+        expected_answer = case.get('expected_answer')
+        expected_choice = case.get('expected_choice')
+
+        if not question_image or not os.path.exists(question_image):
+            console.print(f"[yellow]Skipping {name}: missing question_image.[/yellow]")
+            failed += 1
+            continue
+
+        regions = {}
+        regions['question'] = cv2.imread(question_image)
+        if regions['question'] is None:
+            console.print(f"[yellow]Skipping {name}: unable to read question_image.[/yellow]")
+            failed += 1
+            continue
+
+        for label in ['A', 'B', 'C', 'D']:
+            img_path = answers.get(label)
+            if img_path and os.path.exists(img_path):
+                regions[label] = cv2.imread(img_path)
+
+        if len(regions) <= 1:
+            console.print(f"[yellow]Skipping {name}: no answer images provided.[/yellow]")
+            failed += 1
+            continue
+
+        ocr_texts = local_ocr.process_quiz_regions(regions)
+        ocr_question_text = ocr_texts.get('question', '')
+        recognized = {label: ocr_texts.get(label, '') for label in ['A', 'B', 'C', 'D']}
+
+        if not (ocr_question_text and questions_df is not None and tfidf_vectorizer is not None):
+            console.print(f"[yellow]Skipping {name}: no OCR question or TF-IDF not ready.[/yellow]")
+            failed += 1
+            continue
+
+        matching_entries = find_all_matching_questions(
+            ocr_question_text,
+            questions_df,
+            tfidf_vectorizer,
+            tfidf_matrix,
+            threshold=tfidf_threshold
+        )
+
+        best = select_best_answer_choice(matching_entries, recognized, answer_similarity_threshold)
+        predicted_choice = best.get("choice") if best else None
+        predicted_answer = best.get("entry", {}).get("answer") if best else None
+
+        ok = True
+        if expected_choice and predicted_choice != expected_choice:
+            ok = False
+        if expected_answer and predicted_answer and normalize_match_text(predicted_answer) != normalize_match_text(expected_answer):
+            ok = False
+
+        status = "[green]PASS[/green]" if ok else "[red]FAIL[/red]"
+        console.print(
+            f"{status} {name} | predicted: {predicted_choice} / {predicted_answer} | "
+            f"expected: {expected_choice or '?'} / {expected_answer or '?'}"
+        )
+        if ok:
+            passed += 1
+        else:
+            failed += 1
+
+    console.print(f"[bold cyan]Self-test complete: {passed} passed, {failed} failed.[/bold cyan]")
 def show_help():
     """Display help message"""
     capture_label = hotkeys.get("capture", {}).get("label", "F2")
@@ -1439,6 +1642,7 @@ def show_help():
     print(" filterselected : Toggle filtering '[number] selected' pattern from answers.")
     print(" pos            : Configure question and answer regions via GUI.")
     print(" test           : Run the accuracy_evaluator.py script for batch testing.")
+    print(" selftest       : Run OCR/matching self-tests from config.json.")
     print(" config         : Show current configuration.")
     print(" data <name>: Switch database. Options: default, magic, muggle, all")
     print("                  Example: database magic")
@@ -1469,6 +1673,7 @@ if __name__ == "__main__":
     
     print("\n--- Available Commands ---")
     print("test           - Run the accuracy_evaluator.py script for batch testing")
+    print("selftest       - Run OCR/matching self-tests from config.json")
     print("config         - Show current configuration")
     print("pos            - Configure question and answer regions via GUI")
     print("autoclick      - Toggle auto click (same as F9)")
@@ -1526,6 +1731,8 @@ if __name__ == "__main__":
                         configure_regions_ui()
                     elif command == "test":
                         run_accuracy_evaluator_script()
+                    elif command == "selftest":
+                        run_self_test()
                     elif command == "capture" or command == "f2":
                         capture_and_process()
                     elif command == "reload" or command == "f3":
