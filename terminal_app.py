@@ -98,6 +98,7 @@ tfidf_vectorizer = None
 tfidf_matrix = None
 timings = {}
 auto_click = False  # Whether to automatically click on the answer
+hotkeys = {}
 question_capture_count = 0 # New global counter for captured questions
 active_database = "default"  # Tracks which database is currently loaded
 spam_capture_mode = False  # Flag for controlling continuous spam capture mode
@@ -359,13 +360,25 @@ def get_text_similarity(text1, text2):
     words2 = set(text2.split())
     word_similarity = len(words1.intersection(words2)) / max(len(words1), len(words2))
     
-    # Token-based similarity (handling partial words)
-    tokens1 = set(''.join(c for c in text1 if c.isalnum()).lower())
-    tokens2 = set(''.join(c for c in text2 if c.isalnum()).lower())
-    token_similarity = len(tokens1.intersection(tokens2)) / max(len(tokens1), len(tokens2))
+    # Token-based similarity (numbers and words)
+    tokens1 = set(re.findall(r'[a-z0-9]+', text1))
+    tokens2 = set(re.findall(r'[a-z0-9]+', text2))
+    if tokens1 and tokens2:
+        token_similarity = len(tokens1.intersection(tokens2)) / max(len(tokens1), len(tokens2))
+    else:
+        token_similarity = 0
     
     # Return weighted average of similarities
     return (seq_similarity * 0.6 + word_similarity * 0.2 + token_similarity * 0.2)
+
+def normalize_match_text(text: Optional[str]) -> str:
+    """Normalize text for answer matching."""
+    if not text:
+        return ""
+    text = text.lower()
+    text = re.sub(r'[^a-z0-9\s]', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
 
 def find_best_match(text, q_df):
     """Find best match using TF-IDF and then refine with similarity"""
@@ -422,6 +435,91 @@ def clear_gpu_memory():
         torch.cuda.empty_cache()
         gc.collect()
         logging.info("Cleared GPU memory.")
+
+def parse_hotkey(value: Optional[str]):
+    """Parse a hotkey string into a pynput key object."""
+    if not value:
+        return None
+    key_value = value.strip().lower()
+    if len(key_value) == 1:
+        return keyboard.KeyCode.from_char(key_value)
+    if key_value.startswith("f") and key_value[1:].isdigit():
+        attr = f"f{int(key_value[1:])}"
+        return getattr(keyboard.Key, attr, None)
+    aliases = {
+        "esc": "esc",
+        "escape": "esc",
+        "space": "space",
+        "enter": "enter",
+        "return": "enter",
+        "tab": "tab",
+    }
+    alias = aliases.get(key_value)
+    if alias:
+        return getattr(keyboard.Key, alias, None)
+    return None
+
+def format_hotkey(value: Optional[str]) -> str:
+    """Format hotkey for display."""
+    if not value:
+        return "?"
+    key_value = value.strip()
+    return key_value.upper() if len(key_value) == 1 else key_value.upper()
+
+def load_hotkeys():
+    """Load hotkeys from config with defaults."""
+    global hotkeys
+    defaults = {
+        "capture": "f2",
+        "reload": "f3",
+        "autoclick": "f9",
+        "autoscan": "f10",
+    }
+    config_hotkeys = config.get("hotkeys", {}) if config else {}
+    merged = {**defaults, **(config_hotkeys or {})}
+    resolved = {}
+    for action, value in merged.items():
+        parsed = parse_hotkey(value)
+        if parsed is None:
+            fallback = defaults.get(action)
+            logging.warning("Invalid hotkey for %s: %s. Using default %s.", action, value, fallback)
+            parsed = parse_hotkey(fallback)
+            merged[action] = fallback
+        resolved[action] = {
+            "key": parsed,
+            "label": format_hotkey(merged[action]),
+            "raw": merged[action],
+        }
+    hotkeys = resolved
+
+def report_cuda_status():
+    """Report CUDA availability at startup for OCR performance visibility."""
+    if not HAS_TORCH:
+        console.print("[yellow]Torch not installed; OCR will run on CPU.[/yellow]")
+        logging.warning("Torch not installed; CUDA check skipped.")
+        return
+
+    try:
+        if torch.cuda.is_available():
+            device_count = torch.cuda.device_count()
+            device_name = torch.cuda.get_device_name(0) if device_count > 0 else "Unknown GPU"
+            cuda_version = getattr(torch.version, "cuda", None)
+            console.print(
+                f"[green]CUDA available ({device_count} GPU): {device_name} | CUDA {cuda_version}[/green]"
+            )
+            logging.info(
+                "CUDA available. device_count=%s device_name=%s cuda_version=%s",
+                device_count,
+                device_name,
+                cuda_version
+            )
+        else:
+            cuda_version = getattr(torch.version, "cuda", None)
+            console.print("[yellow]CUDA not available; OCR will run on CPU.[/yellow]")
+            logging.warning("CUDA not available. torch.version.cuda=%s", cuda_version)
+    except Exception as e:
+        console.print("[yellow]CUDA check failed; OCR may run on CPU.[/yellow]")
+        logging.warning("CUDA check failed: %s", e)
 
 def capture_and_save_fullscreen_on_nomatch():
     """Captures the entire screen and saves it when no DB match is found."""
@@ -686,12 +784,35 @@ def capture_and_process():
                     match_q = entry['question']
                     match_a = entry['answer']
                     score = entry['score']
+                    normalized_match_a = normalize_match_text(match_a)
+                    normalized_choices = {
+                        label: normalize_match_text(recognized_text.get(label, ''))
+                        for label in ['A', 'B', 'C', 'D']
+                    }
+
+                    # Prefer exact matches after normalization to avoid near-identical wrong picks.
+                    exact_choice = None
+                    if normalized_match_a:
+                        for label, normalized_choice in normalized_choices.items():
+                            if normalized_choice and normalized_choice == normalized_match_a:
+                                exact_choice = label
+                                break
+                    if exact_choice:
+                        best_match_entry = entry
+                        best_match_choice = exact_choice
+                        best_match_similarity = 1.0
+                        match_short_circuited = True
+                        logging.info(
+                            "Exact answer match found for choice %s; short-circuiting remaining comparisons.",
+                            exact_choice,
+                        )
+                        break
 
                     # Try to find matching answer choice for this potential answer
                     for label in ['A', 'B', 'C', 'D']:
-                        ocr_answer_text = recognized_text.get(label)
-                        if ocr_answer_text:
-                            similarity = get_text_similarity(match_a, ocr_answer_text)
+                        ocr_answer_text = normalized_choices.get(label) or ""
+                        if ocr_answer_text and normalized_match_a:
+                            similarity = get_text_similarity(normalized_match_a, ocr_answer_text)
                             if similarity > best_match_similarity:
                                 best_match_similarity = similarity
                                 best_match_choice = label
@@ -855,17 +976,17 @@ def capture_and_process():
 def on_press(key):
     """Handle key presses"""
     try:
-        if key == keyboard.Key.f2: # F2 captures and processes
-            print("\n--- F2 Pressed: Capturing and Processing ---")
+        if hotkeys.get("capture", {}).get("key") == key:
+            print(f"\n--- {hotkeys.get('capture', {}).get('label', 'Capture')} Pressed: Capturing and Processing ---")
             capture_and_process()
-        elif key == keyboard.Key.f3: # F3 now reloads instead of F4
-            print("\n--- F3 Pressed: Reloading Configuration ---")
+        elif hotkeys.get("reload", {}).get("key") == key:
+            print(f"\n--- {hotkeys.get('reload', {}).get('label', 'Reload')} Pressed: Reloading Configuration ---")
             initialize()
-        elif key == keyboard.Key.f9:  # F9 toggles auto-click
-            print("\n--- F9 Pressed: Toggling Auto Click ---")
+        elif hotkeys.get("autoclick", {}).get("key") == key:
+            print(f"\n--- {hotkeys.get('autoclick', {}).get('label', 'Auto Click')} Pressed: Toggling Auto Click ---")
             toggle_auto_click()
-        elif key == keyboard.Key.f10: # F10 toggles spam capture mode
-            print("\n--- F10 Pressed: Toggling Spam Capture Mode ---")
+        elif hotkeys.get("autoscan", {}).get("key") == key:
+            print(f"\n--- {hotkeys.get('autoscan', {}).get('label', 'Auto Scan')} Pressed: Toggling Spam Capture Mode ---")
             toggle_spam_capture_mode()
     except AttributeError:
         # Handle regular keys if needed, e.g., key.char
@@ -883,7 +1004,8 @@ def spam_capture_loop():
     global spam_capture_mode
 
     console.print("[bold green]Starting spam capture mode[/bold green]")
-    console.print("[bold cyan]Press F10 to stop spam capture mode[/bold cyan]")
+    autoscan_label = hotkeys.get("autoscan", {}).get("label", "F10")
+    console.print(f"[bold cyan]Press {autoscan_label} to stop spam capture mode[/bold cyan]")
 
     try:
         while spam_capture_mode:
@@ -934,6 +1056,12 @@ def initialize():
     # First, load the configuration
     config_manager.load()
     config = config_manager.data
+
+    # Load hotkeys after config is available.
+    load_hotkeys()
+
+    # Report CUDA status early so users know whether GPU is active.
+    report_cuda_status()
     
     # Set auto_click based on configuration
     auto_click = config.get('auto_click', False)
@@ -946,6 +1074,9 @@ def initialize():
         logging.info("OCR Processor initialized.")
     except Exception as e:
         logging.error(f"Error initializing OCR processor: {e}", exc_info=True)
+        console.print(f"[bold red]OCR init failed:[/bold red] {e}")
+        if config.get('require_cuda', False):
+            raise
     
     # Load questions data
     questions_df = load_questions_data()
@@ -1297,10 +1428,14 @@ def run_accuracy_evaluator_script():
         logging.error(f"Failed to run accuracy_evaluator.py: {e}", exc_info=True)
 def show_help():
     """Display help message"""
+    capture_label = hotkeys.get("capture", {}).get("label", "F2")
+    reload_label = hotkeys.get("reload", {}).get("label", "F3")
+    autoclick_label = hotkeys.get("autoclick", {}).get("label", "F9")
+    autoscan_label = hotkeys.get("autoscan", {}).get("label", "F10")
     print("\n--- Available Commands ---")
-    print(" capture / F2   : Capture screen regions, OCR, and find match.")
-    print(" autoclick / F9 : Toggle auto-clicking the matched answer region.")
-    print(" autoscan / F10 : Toggle continuous spam capture mode.")
+    print(f" capture / {capture_label}   : Capture screen regions, OCR, and find match.")
+    print(f" autoclick / {autoclick_label} : Toggle auto-clicking the matched answer region.")
+    print(f" autoscan / {autoscan_label} : Toggle continuous spam capture mode.")
     print(" filterselected : Toggle filtering '[number] selected' pattern from answers.")
     print(" pos            : Configure question and answer regions via GUI.")
     print(" test           : Run the accuracy_evaluator.py script for batch testing.")
@@ -1309,7 +1444,7 @@ def show_help():
     print("                  Example: database magic")
     print(" set <key> <val>: Set a configuration value (e.g., set auto_click True). JSON values need quotes.")
     print("                  Example: set save_all_captured_images True # Save fullscreen image for all captures")
-    print(" reload / F3    : Reload configuration and questions data.")
+    print(f" reload / {reload_label}    : Reload configuration and questions data.")
     print(" help           : Show this help message.")
     print(" exit           : Exit the application.")
     print("------------------------")
@@ -1327,10 +1462,10 @@ if __name__ == "__main__":
     # Set up keyboard listener
     print("\nStarting keyboard listener...")
     print("--- Keyboard Shortcuts ---")
-    print("F2  - Capture and process quiz")
-    print("F3  - Reload configuration")
-    print("F9  - Toggle auto click")
-    print("F10 - Toggle spam capture mode")
+    print(f"{hotkeys.get('capture', {}).get('label', 'F2')}  - Capture and process quiz")
+    print(f"{hotkeys.get('reload', {}).get('label', 'F3')}  - Reload configuration")
+    print(f"{hotkeys.get('autoclick', {}).get('label', 'F9')}  - Toggle auto click")
+    print(f"{hotkeys.get('autoscan', {}).get('label', 'F10')} - Toggle spam capture mode")
     
     print("\n--- Available Commands ---")
     print("test           - Run the accuracy_evaluator.py script for batch testing")

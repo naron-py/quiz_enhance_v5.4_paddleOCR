@@ -1,39 +1,39 @@
 {
     "question_region": {
-        "x": 115,
-        "y": 680,
-        "width": 680,
-        "height": 200
+        "x": 135,
+        "y": 669,
+        "width": 678,
+        "height": 197
     },
     "answer_regions": {
         "A": {
-            "x": 390,
-            "y": 880,
-            "width": 550,
-            "height": 90
+            "x": 391,
+            "y": 889,
+            "width": 556,
+            "height": 74
         },
         "B": {
             "x": 1040,
-            "y": 880,
-            "width": 550,
-            "height": 90
+            "y": 888,
+            "width": 559,
+            "height": 74
         },
         "C": {
             "x": 390,
-            "y": 975,
-            "width": 550,
-            "height": 90
+            "y": 984,
+            "width": 557,
+            "height": 64
         },
         "D": {
-            "x": 1040,
-            "y": 975,
-            "width": 550,
-            "height": 90
+            "x": 1042,
+            "y": 982,
+            "width": 553,
+            "height": 66
         }
     },
     "match_mode": "TF-IDF Fast",
     "show_processing_times": true,
-    "auto_click": true,
+    "auto_click": false,
     "tfidf_threshold": 0.85,
     "answer_similarity_threshold": 0.8,
     "torch_threads": 6,
@@ -42,8 +42,15 @@
     "filter_answer_choice_tags": false,
     "save_all_captured_images": false,
     "spam_capture_deduplication": true,
-    "active_database": "magic",
+    "active_database": "all",
     "filter_selected_pattern": true,
     "log_level": "ERROR",
-    "image_scale_factor": 1.0
+    "image_scale_factor": 1.0,
+    "require_cuda": true,
+    "hotkeys": {
+        "capture": "f2",
+        "reload": "f3",
+        "autoclick": "f9",
+        "autoscan": "f10"
+    }
 }

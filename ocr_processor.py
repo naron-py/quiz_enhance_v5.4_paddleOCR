@@ -18,7 +18,11 @@ class OCRProcessor:
         self.logger = logging.getLogger(__name__)
         self.config = config if config is not None else ConfigManager().data
         self.scale_factor = self.config.get('image_scale_factor', 1.0)
+        require_cuda = self.config.get('require_cuda', False)
         self.model = ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
+        if require_cuda and not torch.cuda.is_available():
+            self.logger.error("CUDA required but not available. OCR cannot start.")
+            raise RuntimeError("CUDA required but not available. Install CUDA-enabled PyTorch.")
         if torch.cuda.is_available():
             self.model = self.model.cuda()
             self.model.eval()

@@ -54,7 +54,14 @@ class ConfigManager:
             'active_database': 'default',
             'filter_selected_pattern': True,
             'log_level': 'INFO',
-            'image_scale_factor': 1.0
+            'image_scale_factor': 1.0,
+            'require_cuda': False,
+            'hotkeys': {
+                'capture': 'f2',
+                'reload': 'f3',
+                'autoclick': 'f9',
+                'autoscan': 'f10'
+            }
         }
 
     def load(self) -> Dict:
