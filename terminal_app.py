@@ -94,6 +94,7 @@ ocr_processor = None
 questions_df = None
 captured_images = {}
 recognized_text = {}
+last_ocr_snapshot = {}
 best_match = None
 tfidf_vectorizer = None
 tfidf_matrix = None
@@ -104,6 +105,8 @@ question_capture_count = 0 # New global counter for captured questions
 active_database = "default"  # Tracks which database is currently loaded
 spam_capture_mode = False  # Flag for controlling continuous spam capture mode
 spam_capture_thread = None  # Thread for running spam capture
+spam_capture_watchdog_thread = None  # Thread to ensure autoscan stays alive
+spam_capture_should_run = threading.Event()
 last_auto_clicked_question = None  # Tracks last question text that triggered auto click
 last_auto_clicked_choice = None  # Tracks last answer choice that triggered auto click
 last_processed_question = None  # Tracks the last OCR question we processed
@@ -1002,7 +1005,7 @@ def capture_and_process():
                         f"Question: '{matching_entries[0]['question']}'\n"
                         f"Highest Choice Similarity: [bold red]{best_match_similarity:.3f}[/bold red] for {best_match_choice} "
                         f"(threshold: {answer_similarity_threshold})",
-                        title="[bold red]❌ Matching Question But No Matching Choice Found[/bold red]",
+                        title="[bold red]X Matching Question But No Matching Choice Found[/bold red]",
                         border_style="red"
                     )
                     
@@ -1034,7 +1037,7 @@ def capture_and_process():
                 # Error panel for no match
                 no_match_panel = Panel(
                     "[red]Database Answer (from initial question match): [italic]None[/italic][/red]",
-                    title="[bold red]❌ No Matching Answer Found[/bold red]",
+                    title="[bold red]X No Matching Answer Found[/bold red]",
                     border_style="red"
                 )
                 console.print(no_match_panel)
@@ -1052,6 +1055,11 @@ def capture_and_process():
             match_end = time.time() # Still record time even if no match attempted
             timings['matching'] = match_end - match_start
             reset_last_auto_clicked_pair()
+
+        # Store a stable OCR snapshot for UI polling.
+        if recognized_text.get('question'):
+            last_ocr_snapshot.clear()
+            last_ocr_snapshot.update(recognized_text)
 
     # Clear GPU memory periodically
     if question_capture_count % 5 == 0: # Adjust frequency as needed
@@ -1116,7 +1124,7 @@ def spam_capture_loop():
     console.print(f"[bold cyan]Press {autoscan_label} to stop spam capture mode[/bold cyan]")
 
     try:
-        while spam_capture_mode:
+        while spam_capture_should_run.is_set():
             try:
                 # Process one capture cycle
                 result = capture_and_process()
@@ -1136,24 +1144,47 @@ def spam_capture_loop():
 
 def toggle_spam_capture_mode():
     """Toggle the spam capture mode on/off"""
-    global spam_capture_mode, spam_capture_thread, spam_capture_seen_prompts
-    
-    # Toggle the mode
-    spam_capture_mode = not spam_capture_mode
-
-    reset_last_auto_clicked_pair()
-
+    global spam_capture_mode
     if spam_capture_mode:
-        # Start the spam capture thread if it doesn't exist or is not alive
-        if spam_capture_thread is None or not spam_capture_thread.is_alive():
-            spam_capture_thread = threading.Thread(target=spam_capture_loop, daemon=True)
-            spam_capture_thread.start()
-        console.print("[bold green]Spam capture mode enabled[/bold green]")
+        stop_spam_capture_mode()
     else:
-        spam_capture_seen_prompts.clear()
-        console.print("[bold yellow]Spam capture mode disabled[/bold yellow]")
-
+        start_spam_capture_mode()
     return spam_capture_mode
+
+def start_spam_capture_mode():
+    """Start spam capture mode if not already running."""
+    global spam_capture_mode, spam_capture_thread
+    spam_capture_mode = True
+    spam_capture_should_run.set()
+    reset_last_auto_clicked_pair()
+    if spam_capture_thread is None or not spam_capture_thread.is_alive():
+        spam_capture_thread = threading.Thread(target=spam_capture_loop, daemon=True)
+        spam_capture_thread.start()
+    ensure_spam_capture_watchdog()
+    console.print("[bold green]Spam capture mode enabled[/bold green]")
+
+def stop_spam_capture_mode():
+    """Stop spam capture mode."""
+    global spam_capture_mode, spam_capture_seen_prompts
+    spam_capture_mode = False
+    spam_capture_should_run.clear()
+    spam_capture_seen_prompts.clear()
+    console.print("[bold yellow]Spam capture mode disabled[/bold yellow]")
+
+def ensure_spam_capture_watchdog():
+    """Ensure a watchdog thread is running to keep autoscan alive."""
+    global spam_capture_watchdog_thread
+    if spam_capture_watchdog_thread is None or not spam_capture_watchdog_thread.is_alive():
+        spam_capture_watchdog_thread = threading.Thread(target=_spam_capture_watchdog_loop, daemon=True)
+        spam_capture_watchdog_thread.start()
+
+def _spam_capture_watchdog_loop():
+    """Restart autoscan if it unexpectedly stops."""
+    while True:
+        time.sleep(1.0)
+        if spam_capture_mode and (spam_capture_thread is None or not spam_capture_thread.is_alive()):
+            logging.warning("Autoscan thread stopped unexpectedly; restarting.")
+            start_spam_capture_mode()
 
 
 

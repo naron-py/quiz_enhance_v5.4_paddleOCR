@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>HPMA Quiz Assistant Dashboard</title>
+    <style>
+      :root {
+        --bg-dark: #0f172a;
+        --bg-panel: rgba(30, 41, 59, 0.7);
+        --bg-panel-solid: #1b2434;
+        --primary: #3b82f6;
+        --magical-green: #00ff87;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --border: rgba(255, 255, 255, 0.1);
+        --shadow-blue: 0 0 15px rgba(59, 130, 246, 0.5);
+        --shadow-green: 0 0 15px rgba(0, 255, 135, 0.4);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", "Segoe UI", sans-serif;
+        color: var(--text);
+        background: radial-gradient(circle at top center, #1e293b 0%, var(--bg-dark) 100%);
+        min-height: 100vh;
+      }
+
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 32px;
+        position: relative;
+      }
+
+      .layout {
+        display: flex;
+        gap: 24px;
+        align-items: flex-start;
+      }
+
+      .layout.right {
+        flex-direction: row-reverse;
+      }
+
+      .sidebar {
+        width: 220px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 28px;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        background: rgba(59, 130, 246, 0.1);
+        font-family: "JetBrains Mono", "Consolas", monospace;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        color: var(--magical-green);
+        margin-bottom: 12px;
+      }
+
+      .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--magical-green);
+        box-shadow: 0 0 12px rgba(0, 255, 135, 0.9);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 44px;
+        letter-spacing: -0.03em;
+        color: #f8fafc;
+        text-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+      }
+
+      .subtitle {
+        margin-top: 6px;
+        font-family: "JetBrains Mono", "Consolas", monospace;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .panel {
+        background: var(--bg-panel);
+        backdrop-filter: blur(12px);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 22px 24px;
+        position: relative;
+      }
+
+      .panel + .panel {
+        margin-top: 18px;
+      }
+
+      .panel-title {
+        font-family: "JetBrains Mono", "Consolas", monospace;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        color: var(--primary);
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+
+      .question-text {
+        font-size: 26px;
+        line-height: 1.35;
+        font-weight: 500;
+      }
+
+      .question-index {
+        color: var(--primary);
+        font-family: "JetBrains Mono", "Consolas", monospace;
+        margin-right: 8px;
+      }
+
+      .choices {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(240px, 1fr));
+        gap: 14px;
+      }
+
+      .choice-card {
+        background: rgba(15, 23, 42, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 14px;
+        padding: 16px;
+        display: flex;
+        gap: 14px;
+        align-items: center;
+      }
+
+      .choice-card.highlight {
+        background: rgba(59, 130, 246, 0.18);
+        border-color: rgba(59, 130, 246, 0.5);
+        box-shadow: var(--shadow-blue);
+      }
+
+      .choice-letter {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        background: #121a2a;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "JetBrains Mono", "Consolas", monospace;
+        color: var(--primary);
+        font-weight: 600;
+      }
+
+      .choice-card.highlight .choice-letter {
+        background: var(--primary);
+        color: #fff;
+        box-shadow: 0 0 12px rgba(59, 130, 246, 0.8);
+      }
+
+      .match-panel {
+        border: 1px solid rgba(0, 255, 135, 0.3);
+        box-shadow: var(--shadow-green);
+      }
+
+      .match-panel::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: var(--magical-green);
+      }
+
+      .match-title {
+        color: var(--magical-green);
+      }
+
+      .match-grid {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      .match-answer {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--magical-green);
+        text-shadow: 0 0 10px rgba(0, 255, 135, 0.8);
+      }
+
+      .match-answer.large {
+        font-size: 33px;
+      }
+
+      .match-score {
+        background: rgba(15, 23, 42, 0.8);
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        text-align: right;
+        font-family: "JetBrains Mono", "Consolas", monospace;
+      }
+
+      .match-score strong {
+        color: var(--magical-green);
+        font-size: 18px;
+      }
+
+      .match-original {
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        font-family: "JetBrains Mono", "Consolas", monospace;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .timing {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        font-family: "JetBrains Mono", "Consolas", monospace;
+        font-size: 11px;
+      }
+
+      .timing span {
+        color: var(--primary);
+      }
+
+      .commands {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .command-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(15, 23, 42, 0.6);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-family: "JetBrains Mono", "Consolas", monospace;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .command-group label {
+        color: var(--muted);
+      }
+
+      .command-group select {
+        background: #0f172a;
+        color: var(--text);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 6px 8px;
+        font-family: "JetBrains Mono", "Consolas", monospace;
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      .command-group select:focus {
+        outline: none;
+        border-color: rgba(59, 130, 246, 0.7);
+      }
+
+      .command-btn {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(15, 23, 42, 0.6);
+        color: var(--text);
+        padding: 10px 12px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-family: "JetBrains Mono", "Consolas", monospace;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        text-align: left;
+      }
+
+      .command-btn:hover {
+        border-color: rgba(59, 130, 246, 0.7);
+      }
+
+      .command-btn.active {
+        background: rgba(59, 130, 246, 0.25);
+        border-color: rgba(59, 130, 246, 0.7);
+        box-shadow: var(--shadow-blue);
+      }
+
+      .scanline {
+        width: 100%;
+        height: 2px;
+        background: rgba(59, 130, 246, 0.1);
+        position: absolute;
+        animation: scan 4s linear infinite;
+        z-index: 1;
+      }
+
+      .panel-toggle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(15, 23, 42, 0.7);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .layout.right .panel-toggle {
+        right: auto;
+        left: 12px;
+      }
+
+      @keyframes scan {
+        0% {
+          top: 0;
+        }
+        100% {
+          top: 100%;
+        }
+      }
+
+      .bg-glow {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: -1;
+      }
+
+      .bg-glow .blob {
+        position: absolute;
+        width: 40%;
+        height: 40%;
+        border-radius: 999px;
+        filter: blur(120px);
+      }
+
+      .bg-glow .blob.blue {
+        top: -10%;
+        left: -10%;
+        background: rgba(59, 130, 246, 0.15);
+      }
+
+      .bg-glow .blob.green {
+        bottom: -10%;
+        right: -10%;
+        background: rgba(0, 255, 135, 0.12);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <div class="status-pill">
+          <span class="status-dot"></span>
+          <span id="status-label">SYSTEM READY</span>
+        </div>
+        <h1>HPMA QUIZ ASSISTANT</h1>
+        <div class="subtitle" id="subtitle">v2.4.0 - DATABASE SYNCED</div>
+      </header>
+      <div class="layout" id="layout">
+        <aside class="sidebar panel">
+          <div class="panel-title">COMMANDS</div>
+          <button class="panel-toggle" onclick="toggleSidebar()" title="Toggle side panel">
+            ↔
+          </button>
+          <div class="commands">
+            <button class="command-btn" onclick="runAction('capture')">CAPTURE</button>
+            <button class="command-btn" onclick="runAction('reload')">RELOAD</button>
+            <button id="btn-autoclick" class="command-btn" onclick="runAction('autoclick')">AUTOCLICK</button>
+            <button id="btn-autoscan" class="command-btn" onclick="runAction('autoscan')">AUTOSCAN</button>
+            <button class="command-btn" onclick="runAction('config')">CONFIG</button>
+            <button class="command-btn" onclick="runAction('pos')">POS</button>
+            <div class="command-group">
+              <label for="data-select">DATA</label>
+              <select id="data-select" onchange="runAction(`data:${this.value}`)">
+                <option value="" selected>Select DB</option>
+                <option value="magic">Magic</option>
+                <option value="muggle">Muggle</option>
+                <option value="all">All</option>
+              </select>
+            </div>
+            <button class="command-btn" onclick="runAction('set')">SET</button>
+            <button class="command-btn" onclick="runAction('test')">TEST</button>
+            <button class="command-btn" onclick="runAction('selftest')">SELFTEST</button>
+            <button class="command-btn" onclick="runAction('help')">HELP</button>
+            <button class="command-btn" onclick="runAction('exit')">EXIT</button>
+          </div>
+        </aside>
+
+        <main class="main">
+          <section class="panel">
+            <div class="panel-title">CAPTURED QUESTION</div>
+            <div class="question-text">
+              <span class="question-index" id="question-index">[0]</span>
+              <span id="question-text">Waiting for capture...</span>
+            </div>
+          </section>
+
+          <section class="choices" id="choices">
+            <div class="choice-card" data-choice="A">
+              <div class="choice-letter">A</div>
+              <div class="choice-text" id="choice-A">-</div>
+            </div>
+            <div class="choice-card" data-choice="B">
+              <div class="choice-letter">B</div>
+              <div class="choice-text" id="choice-B">-</div>
+            </div>
+            <div class="choice-card" data-choice="C">
+              <div class="choice-letter">C</div>
+              <div class="choice-text" id="choice-C">-</div>
+            </div>
+            <div class="choice-card" data-choice="D">
+              <div class="choice-letter">D</div>
+              <div class="choice-text" id="choice-D">-</div>
+            </div>
+          </section>
+
+          <section class="panel match-panel">
+            <div class="panel-title match-title">MATCH FOUND</div>
+            <div class="match-grid">
+              <div>
+            <div class="subtitle">DATABASE ANSWER</div>
+            <div class="match-answer large" id="match-answer">-</div>
+            <div class="subtitle" style="margin-top: 12px;">MATCH CHOICE</div>
+            <div class="match-answer large" id="match-choice">-</div>
+              </div>
+              <div class="match-score">
+                <div class="subtitle">SIMILARITY SCORE</div>
+                <strong id="match-score">0.000</strong>
+              </div>
+            </div>
+            <div class="match-original" id="match-original">Original Match Text: -</div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">PROCESSING TIMES</div>
+            <div class="timing" id="timing-text">CAPTURE: 0.000s | OCR: 0.000s | MATCHING: 0.000s | TOTAL: 0.000s</div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="bg-glow">
+      <div class="blob blue"></div>
+      <div class="blob green"></div>
+      <div class="scanline"></div>
+    </div>
+
+    <script>
+      let lastState = null;
+
+      async function refreshState() {
+        if (!window.pywebview || !window.pywebview.api) {
+          return;
+        }
+        const state = await window.pywebview.api.get_state();
+        if (!state || !state.ok) {
+          return;
+        }
+
+        const hasQuestion = state.question && state.question.trim().length > 0;
+        const hasChoices =
+          state.choices &&
+          Object.values(state.choices).some((value) => value && value.trim().length > 0);
+        const hasMatch = state.match_answer && state.match_answer.trim().length > 0;
+        const hasNewData = hasQuestion || hasChoices || hasMatch;
+
+        if (!lastState) {
+          lastState = state;
+        }
+
+        document.getElementById("status-label").textContent = state.status || "READY";
+        document.getElementById("subtitle").textContent = state.subtitle || "";
+
+        if (hasQuestion) {
+          document.getElementById("question-index").textContent = `[${state.question_index}]`;
+          document.getElementById("question-text").textContent = state.question;
+        } else if (lastState) {
+          document.getElementById("question-index").textContent = `[${lastState.question_index}]`;
+          document.getElementById("question-text").textContent = lastState.question || "-";
+        }
+
+        ["A", "B", "C", "D"].forEach((label) => {
+          const text = state.choices ? state.choices[label] : "";
+          const fallback = lastState && lastState.choices ? lastState.choices[label] : "-";
+          document.getElementById(`choice-${label}`).textContent = text;
+          const card = document.querySelector(`.choice-card[data-choice="${label}"]`);
+          if (state.match_answer && state.best_choice === label) {
+            card.classList.add("highlight");
+          } else {
+            card.classList.remove("highlight");
+          }
+          if (!text || text.trim().length === 0) {
+            document.getElementById(`choice-${label}`).textContent = fallback || "-";
+          }
+        });
+
+        if (state.match_answer && state.match_answer.trim().length > 0) {
+          document.getElementById("match-answer").textContent = state.match_answer;
+          document.getElementById("match-choice").textContent = state.best_choice || "-";
+          document.getElementById("match-score").textContent = state.match_score || "0.000";
+          document.getElementById("match-original").textContent =
+            state.match_question ? `Original Match Text: "${state.match_question}"` : "Original Match Text: -";
+        } else if (lastState) {
+          document.getElementById("match-answer").textContent = lastState.match_answer || "-";
+          document.getElementById("match-choice").textContent = lastState.best_choice || "-";
+          document.getElementById("match-score").textContent = lastState.match_score || "0.000";
+          document.getElementById("match-original").textContent =
+            lastState.match_question ? `Original Match Text: "${lastState.match_question}"` : "Original Match Text: -";
+        }
+
+        if (state.timings && state.timings.length > 0) {
+          document.getElementById("timing-text").textContent = state.timings;
+        } else if (lastState) {
+          document.getElementById("timing-text").textContent = lastState.timings || "No timings recorded.";
+        }
+
+        if (hasNewData) {
+          lastState = {
+            ...lastState,
+            ...state,
+            choices: { ...(lastState ? lastState.choices : {}), ...(state.choices || {}) },
+          };
+        }
+
+        const autoclickBtn = document.getElementById("btn-autoclick");
+        const autoscanBtn = document.getElementById("btn-autoscan");
+        if (autoclickBtn) {
+          autoclickBtn.classList.toggle("active", !!state.autoclick);
+        }
+        if (autoscanBtn) {
+          autoscanBtn.classList.toggle("active", !!state.autoscan);
+        }
+      }
+
+      async function runAction(action) {
+        if (!window.pywebview || !window.pywebview.api) {
+          return;
+        }
+        const result = await window.pywebview.api.run_action(action);
+        if (result && result.status) {
+          document.getElementById("status-label").textContent = result.status;
+        }
+
+        if (action === "config" && result && result.data) {
+          alert(result.data);
+        }
+
+        if (action === "help" && result && result.data) {
+          alert(result.data);
+        }
+
+        if (action === "set" && result && result.prompt) {
+          const key = prompt("Enter config key", "");
+          if (key) {
+            const val = prompt("Enter value (JSON if needed)", "");
+            if (val !== null) {
+              await window.pywebview.api.run_action(`set:${key}:${val}`);
+            }
+          }
+        }
+
+        await refreshState();
+      }
+
+      window.addEventListener("pywebviewready", () => {
+        refreshState();
+        setInterval(refreshState, 1000);
+      });
+
+      function toggleSidebar() {
+        const layout = document.getElementById("layout");
+        layout.classList.toggle("right");
+      }
+    </script>
+  </body>
+</html>
