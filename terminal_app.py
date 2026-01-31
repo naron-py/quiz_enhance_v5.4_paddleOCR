@@ -75,12 +75,12 @@ logging.basicConfig(
     ]
 )
 
-# Try to import torch for GPU memory management
+# Try to import paddle for GPU memory management
 try:
-    import torch
-    HAS_TORCH = True
+    import paddle
+    HAS_PADDLE = True
 except ImportError:
-    HAS_TORCH = False
+    HAS_PADDLE = False
 
 # Try to import Windows-specific modules for direct input
 try:
@@ -559,11 +559,11 @@ def find_best_match(text, q_df):
     return match_q, match_a, score_tfidf
 
 def clear_gpu_memory():
-    """Clear GPU memory if torch is available"""
-    if HAS_TORCH and torch.cuda.is_available():
-        torch.cuda.empty_cache()
+    """Clear GPU memory if paddle is available"""
+    if HAS_PADDLE and paddle.is_compiled_with_cuda():
+        paddle.device.cuda.empty_cache()
         gc.collect()
-        logging.info("Cleared GPU memory.")
+        logging.info("Cleared GPU memory (Paddle).")
 
 def parse_hotkey(value: Optional[str]):
     """Parse a hotkey string into a pynput key object."""
@@ -623,29 +623,24 @@ def load_hotkeys():
 
 def report_cuda_status():
     """Report CUDA availability at startup for OCR performance visibility."""
-    if not HAS_TORCH:
-        console.print("[yellow]Torch not installed; OCR will run on CPU.[/yellow]")
-        logging.warning("Torch not installed; CUDA check skipped.")
+    if not HAS_PADDLE:
+        console.print("[yellow]PaddlePaddle not installed; OCR might be slow.[/yellow]")
+        logging.warning("PaddlePaddle not installed.")
         return
 
     try:
-        if torch.cuda.is_available():
-            device_count = torch.cuda.device_count()
-            device_name = torch.cuda.get_device_name(0) if device_count > 0 else "Unknown GPU"
-            cuda_version = getattr(torch.version, "cuda", None)
+        if paddle.is_compiled_with_cuda():
+            device = paddle.device.get_device()
             console.print(
-                f"[green]CUDA available ({device_count} GPU): {device_name} | CUDA {cuda_version}[/green]"
+                f"[green]CUDA available for PaddleOCR: {device}[/green]"
             )
             logging.info(
-                "CUDA available. device_count=%s device_name=%s cuda_version=%s",
-                device_count,
-                device_name,
-                cuda_version
+                "CUDA available. device=%s",
+                device
             )
         else:
-            cuda_version = getattr(torch.version, "cuda", None)
-            console.print("[yellow]CUDA not available; OCR will run on CPU.[/yellow]")
-            logging.warning("CUDA not available. torch.version.cuda=%s", cuda_version)
+            console.print("[yellow]CUDA not available for Paddle; OCR will run on CPU.[/yellow]")
+            logging.warning("Paddle not compiled with CUDA.")
     except Exception as e:
         console.print("[yellow]CUDA check failed; OCR may run on CPU.[/yellow]")
         logging.warning("CUDA check failed: %s", e)

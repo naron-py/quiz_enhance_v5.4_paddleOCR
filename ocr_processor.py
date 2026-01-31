@@ -1,14 +1,14 @@
+from paddleocr import PaddleOCR
+import paddle
+import os
 import cv2
 import numpy as np
-import torch
 import re
 from pathlib import Path
 import logging
 from typing import Dict, List, Optional, Tuple, Union
 import time
 from PIL import Image
-from doctr.io import DocumentFile
-from doctr.models import ocr_predictor
 from concurrent.futures import ThreadPoolExecutor
 from config_manager import ConfigManager
 
@@ -18,22 +18,35 @@ class OCRProcessor:
         self.logger = logging.getLogger(__name__)
         self.config = config if config is not None else ConfigManager().data
         self.scale_factor = self.config.get('image_scale_factor', 1.0)
-        require_cuda = self.config.get('require_cuda', False)
-        self.model = ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
-        if require_cuda and not torch.cuda.is_available():
-            self.logger.error("CUDA required but not available. OCR cannot start.")
-            raise RuntimeError("CUDA required but not available. Install CUDA-enabled PyTorch.")
-        if torch.cuda.is_available():
-            self.model = self.model.cuda()
-            self.model.eval()
-            self.logger.info("Using GPU for OCR")
-        else:
-            self.model = self.model.cpu()
-            self.model.eval()
-            self.logger.info("Using CPU for OCR")
-        self.inference_context = (
-            torch.inference_mode if hasattr(torch, "inference_mode") else torch.no_grad
-        )
+        self.use_gpu = self.config.get('require_cuda', False) or self.config.get('use_gpu', True)
+        
+        try:
+            # Control PaddleOCR logging based on config (must be set BEFORE initialization)
+            show_paddleocr_logs = self.config.get('show_paddleocr_debug_logs', False)
+            if not show_paddleocr_logs:
+                # Suppress PaddleOCR debug logs
+                import logging as ppocr_logging
+                ppocr_logging.getLogger('ppocr').setLevel(ppocr_logging.WARNING)
+            
+            # Initialize PaddleOCR
+            # use_angle_cls=True allows detecting text at angles
+            # lang='en' for English
+            # Set device explicitly via paddle
+            # Bypass model source connectivity check to avoid torch import issues
+            os.environ['PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK'] = 'True'
+            
+            if self.use_gpu:
+                paddle.device.set_device('gpu')
+            else:
+                paddle.device.set_device('cpu')
+                
+            self.model = PaddleOCR(use_angle_cls=True, lang='en')
+            
+            self.logger.info(f"PaddleOCR initialized (GPU={self.use_gpu})")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize PaddleOCR: {e}")
+            raise
+
         self.debug_dir = Path('debug_images')
         self.debug_dir.mkdir(exist_ok=True)
         
@@ -129,21 +142,21 @@ class OCRProcessor:
                 return ""
 
             # Perform OCR using docTR
-            with self.inference_context():
-                if torch.cuda.is_available():
-                    with torch.amp.autocast('cuda'):
-                        result = self.model([processed_image])
-                else:
-                    result = self.model([processed_image])
+            # Perform OCR using PaddleOCR
+            # PaddleOCR expects path or numpy array
+            result = self.model.ocr(processed_image, cls=True)
+
+            # Extract text from result
+            # result structure: [ [ [ [x1,y1],...], (text, conf) ], ... ]
+            # Note: result can be None or empty list if no text found
             
-            # Extract text from all blocks
             text_parts = []
-            for page in result.pages:
-                for block in page.blocks:
-                    for line in block.lines:
-                        line_text = " ".join(word.value for word in line.words)
-                        if line_text.strip():  # Only add non-empty lines
-                            text_parts.append(line_text)
+            if result and result[0]:
+                for line in result[0]:
+                    # line[1] contains (text, confidence)
+                    text = line[1][0]
+                    if text.strip():
+                        text_parts.append(text)
             
             # Join and clean the text
             full_text = ' '.join(text_parts)
@@ -188,31 +201,25 @@ class OCRProcessor:
             return results
 
         try:
-            # Batch OCR only on valid images
-            with self.inference_context():
-                if torch.cuda.is_available():
-                    with torch.amp.autocast('cuda'):
-                        ocr_results = self.model(valid_images)
-                else:
-                    ocr_results = self.model(valid_images)
+            # Prepare images list for batch processing if supported, 
+            # but PaddleOCR standard API processes one by one mostly unless using specific batch APIs which are less standard.
+            # However, we can just loop them. For true parallel/batch, we'd need to check Paddle docs deeply.
+            # But the requirement is speed. Sequential processing of pre-loaded numpy arrays is reasonably fast on GPU.
+            # Let's try simple sequential first, as PaddleOCR internal batching isn't straightforward in the high-level API.
+            
+            for name, img in zip(valid_names, valid_images):
+                try:
+                    res = self.model.ocr(img, cls=True)
+                    parts = []
+                    if res and res[0]:
+                        for line in res[0]:
+                            parts.append(line[1][0])
+                    full_text = ' '.join(parts)
+                    cleaned_text = self.clean_text(full_text)
+                    results[name] = cleaned_text
+                except Exception as e:
+                    self.logger.error(f"Error OCRing region {name}: {e}")
 
-            if len(ocr_results.pages) != len(valid_names):
-                self.logger.warning(
-                    "Mismatch between OCR pages and valid regions: %d vs %d",
-                    len(ocr_results.pages),
-                    len(valid_names)
-                )
-
-            for name, page in zip(valid_names, ocr_results.pages):
-                text_parts = []
-                for block in page.blocks:
-                    for line in block.lines:
-                        line_text = " ".join(word.value for word in line.words)
-                        if line_text.strip():
-                            text_parts.append(line_text)
-                full_text = ' '.join(text_parts)
-                cleaned_text = self.clean_text(full_text)
-                results[name] = cleaned_text
         except Exception as e:
             self.logger.error(f"Error during batch OCR: {str(e)}")
             return results
@@ -225,45 +232,4 @@ class OCRProcessor:
 
         return results
 
-    def export_detection_torchscript(self, export_path: str = "det_model.ts") -> Optional[str]:
-        """Export the detection sub-model to TorchScript for investigation."""
-        try:
-            det_model = self.model.det_predictor.model
-            det_model.eval()
-            device = next(det_model.parameters()).device
-            example = torch.randn(1, 3, 512, 512, device=device)
-            scripted = torch.jit.trace(det_model, example)
-            scripted.save(export_path)
-            self.logger.info(f"Detection model exported to {export_path}")
-            return export_path
-        except Exception as e:
-            self.logger.error(f"Failed to export detection model: {e}")
-            return None
 
-    def benchmark_detection(self, export_path: str = "det_model.ts", runs: int = 10) -> Dict[str, float]:
-        """Benchmark inference speed between PyTorch and TorchScript detection models."""
-        det_model = self.model.det_predictor.model
-        device = next(det_model.parameters()).device
-        dummy = torch.randn(1, 3, 512, 512, device=device)
-
-        det_model.eval()
-        for _ in range(3):
-            det_model(dummy)
-        start = time.time()
-        for _ in range(runs):
-            det_model(dummy)
-        pytorch_time = (time.time() - start) / runs
-
-        script = torch.jit.load(export_path, map_location=device)
-        script.eval()
-        for _ in range(3):
-            script(dummy)
-        start = time.time()
-        for _ in range(runs):
-            script(dummy)
-        script_time = (time.time() - start) / runs
-
-        self.logger.info(
-            f"Detection benchmark - PyTorch: {pytorch_time:.4f}s, TorchScript: {script_time:.4f}s"
-        )
-        return {"pytorch": pytorch_time, "torchscript": script_time}

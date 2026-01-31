@@ -42,5 +42,6 @@ echo HPMA Quiz Assistant started successfully!
 echo F2 - Capture and process quiz
 echo F3 - Clear overlay
 echo.
-echo Press any key to exit this window...
-pause > nul 
+:: Auto-close this launcher window after 2 seconds
+timeout /t 2 /nobreak >nul
+exit 
