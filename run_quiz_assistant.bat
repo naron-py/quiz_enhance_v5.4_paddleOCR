@@ -40,7 +40,6 @@ start cmd /k "cd /d "%~dp0" && "%~dp0venv\Scripts\python.exe" "%~dp0terminal_app
 echo.
 echo HPMA Quiz Assistant started successfully!
 echo F2 - Capture and process quiz
-echo F3 - Clear overlay
 echo.
 :: Auto-close this launcher window after 2 seconds
 timeout /t 2 /nobreak >nul
