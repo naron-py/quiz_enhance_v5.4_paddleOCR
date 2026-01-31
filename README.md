@@ -16,7 +16,11 @@ A high-performance OCR-powered quiz assistant using PaddleOCR for accurate and f
 
 - **Windows 10/11**
 - **Python 3.11+** ([Download here](https://www.python.org/downloads/))
-- **CUDA-capable GPU** (recommended for best performance)
+- **CUDA 11.8** ([Download here](https://developer.nvidia.com/cuda-11-8-0-download-archive))
+  - Required for GPU acceleration with PaddlePaddle 2.6.2
+  - Select: Windows > x86_64 > 10/11 > exe (network)
+  - **Note**: CUDA 11.8 specifically, not newer versions (12.x won't work)
+- **CUDA-capable NVIDIA GPU** (GTX 10-series or newer recommended)
 - **Git** (for cloning)
 
 ### Installation Steps
@@ -101,6 +105,12 @@ If you see DLL errors or import issues:
 If you don't have a CUDA GPU:
 1. Open `config.json`
 2. Set `"require_cuda": false`
+
+**Important**: If you have an NVIDIA GPU but see "CUDA not available":
+- Make sure you installed **CUDA 11.8** (not 12.x or other versions)
+- Download from: https://developer.nvidia.com/cuda-11-8-0-download-archive
+- Restart your PC after installation
+- Verify installation: Open CMD and run `nvidia-smi`
 
 ### Debug Logs
 
