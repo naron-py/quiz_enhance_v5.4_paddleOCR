@@ -1,4 +1,4 @@
-# Quiz Enhance v3
+# Quiz Enhance v5
 
 This project captures quiz questions from the screen, performs OCR using docTR and attempts to automatically match the correct answer.
 
