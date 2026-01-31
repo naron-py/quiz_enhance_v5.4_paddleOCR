@@ -1,30 +1,69 @@
 @echo off
-echo ==========================================
-echo   HPMA Quiz Assistant Environment Setup
-echo ==========================================
+echo ============================================
+echo   HPMA Quiz Assistant - First Run Setup
+echo ============================================
+echo.
+echo This script will:
+echo - Create a Python virtual environment
+echo - Install PaddleOCR and dependencies
+echo - Configure the application
+echo.
 
-:: 1. Create Virtual Environment if it doesn't exist
-if not exist "venv" (
-    echo Creating virtual environment...
-    python -m venv venv
-) else (
-    echo Virtual environment already exists.
+:: Set the current directory
+cd /d "%~dp0"
+
+:: Check if Python is installed
+python --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Python is not installed or not in PATH
+    echo Please install Python 3.11+ from https://www.python.org/
+    echo.
+    pause
+    exit /b 1
 )
 
-:: 2. Upgrade pip
-echo Upgrading pip...
-venv\Scripts\python -m pip install --upgrade pip
+echo [1/5] Creating virtual environment...
+python -m venv venv
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to create virtual environment
+    pause
+    exit /b 1
+)
 
-:: 3. Install Core Dependencies
-echo Installing requirements...
-venv\Scripts\pip install -r requirements.txt
+echo [2/5] Activating virtual environment...
+call venv\Scripts\activate.bat
 
-:: 4. Install CUDA-enabled PyTorch (Override CPU version if present)
-echo Installing PyTorch with CUDA 12.1 support...
-venv\Scripts\pip install torch==2.5.1+cu121 torchvision==0.20.1+cu121 torchaudio==2.5.1+cu121 --index-url https://download.pytorch.org/whl/cu121
+echo [3/5] Upgrading pip...
+python -m pip install --upgrade pip
+
+echo [4/5] Installing dependencies in correct order...
+echo    - Installing Torch (CPU version to avoid DLL conflicts)...
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+echo    - Installing PaddlePaddle GPU...
+pip install paddlepaddle-gpu==2.6.2
+
+echo    - Installing PaddleOCR...
+pip install paddleocr==2.8.1
+
+echo    - Installing OpenCV...
+pip install opencv-python
+
+echo    - Installing remaining dependencies...
+pip install -r requirements.txt
+
+echo [5/5] Verifying installation...
+python -c "from paddleocr import PaddleOCR; import cv2; print('✓ PaddleOCR installed successfully')" 2>nul
+if %errorlevel% neq 0 (
+    echo [WARNING] PaddleOCR verification failed, but continuing...
+)
 
 echo.
-echo ==========================================
-echo           Setup Complete!
-echo ==========================================
+echo ============================================
+echo   Setup Complete!
+echo ============================================
+echo.
+echo You can now run the application using:
+echo    run_quiz_assistant.bat
+echo.
 pause
