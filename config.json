@@ -42,6 +42,7 @@
     "filter_answer_choice_tags": false,
     "save_all_captured_images": false,
     "spam_capture_deduplication": true,
+    "use_smart_vision": true,
     "active_database": "magic",
     "filter_selected_pattern": true,
     "log_level": "ERROR",

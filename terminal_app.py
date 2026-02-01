@@ -32,7 +32,10 @@ import argparse
 # Optional UI server imports (only needed for Electron UI mode)
 from ui_server import UIServer
 from ui_helper import send_to_ui
+from ui_detector import UIDetector
 HAS_UI_SERVER = True
+
+auto_detector = UIDetector()
 
 # Import Rich for colored terminal output
 from rich.console import Console
@@ -761,6 +764,14 @@ def capture_and_process():
             max_right = max(region['x'] + region['width'] for region in valid_regions)
             max_bottom = max(region['y'] + region['height'] for region in valid_regions)
 
+            # Smart Vision: Expand capture area to allow dynamic box detection
+            if config.get('use_smart_vision', False):
+                padding = 60
+                min_left = max(0, min_left - padding)
+                min_top = max(0, min_top - padding)
+                max_right += padding
+                max_bottom += padding
+
             bbox = {
                 "left": min_left,
                 "top": min_top,
@@ -775,8 +786,18 @@ def capture_and_process():
             # Slice the combined capture back into individual regions
             question_region = config.get('question_region')
             if question_region:
-                relative_question = _offset_region(question_region, min_left, min_top)
-                captured_images['question'] = crop_image_from_numpy(combined_image, relative_question)
+                dynamic_done = False
+                if config.get('use_smart_vision', False):
+                     # Try to detect dynamic box within the captured area
+                     dynamic_rect = auto_detector.detect_question_box(combined_image)
+                     if dynamic_rect:
+                          dx, dy, dw, dh = dynamic_rect
+                          captured_images['question'] = combined_image[dy:dy+dh, dx:dx+dw]
+                          dynamic_done = True
+                
+                if not dynamic_done:
+                    relative_question = _offset_region(question_region, min_left, min_top)
+                    captured_images['question'] = crop_image_from_numpy(combined_image, relative_question)
 
             for label, region in config.get('answer_regions', {}).items():
                 if not region:
