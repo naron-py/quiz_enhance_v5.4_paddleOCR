@@ -39,6 +39,7 @@ class UIDetector:
             best_box = None
             max_area = 0
             
+            candidates = []
             for cnt in contours:
                 x, y, w, h = cv2.boundingRect(cnt)
                 aspect_ratio = w / float(h)
@@ -49,10 +50,21 @@ class UIDetector:
                 # - Height must be > 30px
                 # - Aspect ratio should be > 2.0 (wide rectangle)
                 if w > (width * 0.2) and h > 30 and aspect_ratio > 2.0:
-                    if area > max_area:
-                        max_area = area
-                        best_box = (x, y, w, h)
+                    candidates.append((x, y, w, h))
             
+            if candidates:
+                # Sort by Y position (find top-most box which is the Question)
+                # Secondary sort by Area (descending) just in case
+                candidates.sort(key=lambda b: (b[1], -b[2]*b[3]))
+                
+                # Verify the top candidate is not TOO close to the top edge (avoid status bars)
+                # But typically Question is the first wide brown box.
+                best_box = candidates[0]
+                
+                # DEBUG: Log if multiple candidates found
+                if len(candidates) > 1:
+                     self.logger.debug(f"SmartVision: Found {len(candidates)} candidates. Selected Top: {best_box}")
+                
             return best_box
             
         except Exception as e:
