@@ -22,6 +22,10 @@ timeout /t 5 /nobreak >nul
 
 :: Start Electron UI
 echo [2/2] Starting Electron UI...
+if not exist "%~dp0node_modules" (
+    echo [INFO] node_modules not found. Installing dependencies...
+    call npm install
+)
 call npm start
 
 echo.

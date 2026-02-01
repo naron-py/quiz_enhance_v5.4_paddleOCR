@@ -52,7 +52,21 @@ pip install opencv-python
 echo    - Installing remaining dependencies...
 pip install -r requirements.txt
 
-echo [5/5] Verifying installation...
+echo [5/6] Installing Node.js dependencies...
+where node >nul 2>nul
+if %errorlevel% neq 0 (
+    echo [WARNING] Node.js is not installed. UI features may not work.
+    echo Please install Node.js from https://nodejs.org/
+) else (
+    call npm install
+    if %errorlevel% neq 0 (
+        echo [WARNING] npm install failed.
+    ) else (
+        echo Node modules installed successfully.
+    )
+)
+
+echo [6/6] Verifying installation...
 python -c "from paddleocr import PaddleOCR; import cv2; print('✓ PaddleOCR installed successfully')" 2>nul
 if %errorlevel% neq 0 (
     echo [WARNING] PaddleOCR verification failed, but continuing...

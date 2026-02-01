@@ -19,6 +19,7 @@ paddleocr==2.8.1
 
 # UI and display libraries
 rich>=12.0.0
+websockets>=10.0
 colorama>=0.4.4
 prettytable>=2.5.0
 pywebview>=4.0.0
