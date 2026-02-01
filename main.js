@@ -97,8 +97,37 @@ ipcMain.on('resize-window', (event, { width, height }) => {
     // require('fs').appendFileSync('ui_debug_log.txt', `[Main] Resize Request: ${width}x${height} | Current: ${currentSize[0]}x${currentSize[1]} | Diff: ${widthDiff}x${heightDiff}\n`);
 
     if (heightDiff > 2 || widthDiff > 2) {
-      mainWindow.setSize(width, height);
-      // require('fs').appendFileSync('ui_debug_log.txt', `[Main] Applied Size: ${width}x${height}\n`);
+      const { screen } = require('electron');
+      const winBounds = mainWindow.getBounds();
+      const display = screen.getDisplayMatching(winBounds);
+
+      let newX = winBounds.x;
+
+      // Check if expanding to the right hits the screen edge
+      // If (currentX + newWidth) > (workAreaX + workAreaWidth)
+      const rightEdge = winBounds.x + width;
+      const screenRightEdge = display.workArea.x + display.workArea.width;
+
+      if (rightEdge > screenRightEdge) {
+        // Verify if shifting left fits on screen?
+        // Shift left by the overflow amount
+        const overflow = rightEdge - screenRightEdge;
+        newX = winBounds.x - overflow;
+
+        // Ensure we don't shift off the left edge either
+        if (newX < display.workArea.x) {
+          newX = display.workArea.x;
+        }
+      }
+
+      if (newX !== winBounds.x) {
+        // Use setBounds to move and resize simultaneously
+        mainWindow.setBounds({ x: newX, y: winBounds.y, width: width, height: height });
+        // require('fs').appendFileSync('ui_debug_log.txt', `[Main] Applied Smart Shift: Moved X to ${newX}, Size ${width}x${height}\n`);
+      } else {
+        mainWindow.setSize(width, height);
+        // require('fs').appendFileSync('ui_debug_log.txt', `[Main] Applied Size: ${width}x${height}\n`);
+      }
     } else {
       // require('fs').appendFileSync('ui_debug_log.txt', `[Main] Skipped Resize (Diff too small)\n`);
     }
