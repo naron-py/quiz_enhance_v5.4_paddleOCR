@@ -85,8 +85,17 @@ ipcMain.on('resize-window', (event, { width, height }) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     const currentSize = mainWindow.getSize();
     // Only resize if significantly different to avoid jitter, but allow height changes
-    if (Math.abs(currentSize[1] - height) > 2 || Math.abs(currentSize[0] - width) > 2) {
+    const widthDiff = Math.abs(currentSize[0] - width);
+    const heightDiff = Math.abs(currentSize[1] - height);
+
+    // DEBUG LOGGING
+    require('fs').appendFileSync('ui_debug_log.txt', `[Main] Resize Request: ${width}x${height} | Current: ${currentSize[0]}x${currentSize[1]} | Diff: ${widthDiff}x${heightDiff}\n`);
+
+    if (heightDiff > 2 || widthDiff > 2) {
       mainWindow.setSize(width, height);
+      require('fs').appendFileSync('ui_debug_log.txt', `[Main] Applied Size: ${width}x${height}\n`);
+    } else {
+      require('fs').appendFileSync('ui_debug_log.txt', `[Main] Skipped Resize (Diff too small)\n`);
     }
   }
 });

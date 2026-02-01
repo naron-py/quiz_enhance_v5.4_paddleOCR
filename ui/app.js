@@ -192,6 +192,14 @@ function updateDisplay(data) {
                 // Header icons take up ~150px. Text is separate.
                 newWidth = Math.max(380, textWidth + 100);
 
+                // DEBUG LOGGING
+                require('fs').appendFileSync('ui_debug_log.txt', `[Renderer] Content: "${currentChoice} | ${currentAnswer}" | TextWidth: ${textWidth} | CalcWidth: ${newWidth}\n`);
+                document.body.removeChild(measureSpan);
+
+                // Add padding for header (icons) + container padding + safety
+                // Header icons take up ~150px. Text is separate.
+                newWidth = Math.max(380, textWidth + 100);
+
                 // Calculate height: Header + Content + padding
                 // Add 10px extra to strictly avoid vertical scrollbar usage
                 newHeight = header.offsetHeight + content.offsetHeight + 10;
