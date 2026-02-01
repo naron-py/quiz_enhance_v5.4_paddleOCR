@@ -7,7 +7,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 400,
     height: 100,
-    minWidth: 150,
+    minWidth: 380,
     minHeight: 50,
     maxWidth: 800,
     maxHeight: 600,
@@ -54,10 +54,14 @@ function sendMockData() {
 }
 
 // Handle always-on-top toggle
+// Handle always-on-top toggle
 ipcMain.on('toggle-always-on-top', (event) => {
   const isAlwaysOnTop = mainWindow.isAlwaysOnTop();
-  mainWindow.setAlwaysOnTop(!isAlwaysOnTop);
-  event.reply('always-on-top-changed', !isAlwaysOnTop);
+  const newState = !isAlwaysOnTop;
+  // 'screen-saver' level is needed to be on top of some fullscreen apps
+  mainWindow.setAlwaysOnTop(newState, 'screen-saver');
+  event.reply('always-on-top-changed', newState);
+  console.log(`Always on top set to: ${newState}`);
 });
 
 // Handle minimize

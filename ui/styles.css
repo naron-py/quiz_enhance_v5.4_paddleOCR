@@ -153,8 +153,26 @@ body {
   background: rgba(255, 59, 48, 0.8);
 }
 
+.control-btn.close:hover {
+  background: rgba(255, 59, 48, 0.8);
+}
+
 .control-btn.active {
   background: rgba(52, 199, 89, 0.8);
+  color: white;
+  box-shadow: 0 0 8px rgba(52, 199, 89, 0.6);
+}
+
+/* Tool Buttons specific styling */
+.control-btn.tool {
+  margin-right: 4px;
+}
+
+.divider {
+  width: 1px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 8px;
 }
 
 .db-selector {

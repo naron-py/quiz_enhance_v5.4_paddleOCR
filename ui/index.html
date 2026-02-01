@@ -23,11 +23,36 @@
     <div class="header">
       <div class="drag-handle"></div>
       <div class="controls">
+        <!-- Tool Icons -->
+        <button id="posBtn" class="control-btn tool" title="Configure Position">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="16"></line>
+            <line x1="8" y1="12" x2="16" y2="12"></line>
+          </svg>
+        </button>
+        <button id="autoClickBtn" class="control-btn tool" title="Toggle Auto-Click">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 22l10-2l10 2L12 2z"></path>
+          </svg>
+        </button>
+        <button id="autoScanBtn" class="control-btn tool" title="Toggle Auto-Scan">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </button>
+
+        <div class="divider"></div>
+
         <select id="dbSelector" class="db-selector" title="Switch Database">
           <option value="all">DB: All</option>
           <option value="magic">DB: Magic</option>
           <option value="muggle">DB: Muggle</option>
         </select>
+
+        <div class="divider"></div>
+
         <button id="pinBtn" class="control-btn" title="Pin on top">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M12 2v20M17 7l-5 5-5-5" />

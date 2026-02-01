@@ -1188,6 +1188,7 @@ def toggle_spam_capture_mode():
         stop_spam_capture_mode()
     else:
         start_spam_capture_mode()
+    ui_broadcast_state()
     return spam_capture_mode
 
 def start_spam_capture_mode():
@@ -1366,6 +1367,7 @@ def toggle_auto_click():
     config_manager.data = config
     config_manager.save()
     print(f"Auto click {'enabled' if auto_click else 'disabled'}.")
+    ui_broadcast_state()
 
 def toggle_filter_selected():
     """Toggle filter selected pattern setting"""
@@ -1767,8 +1769,24 @@ def handle_ui_command(data):
         if cmd_type == "switch_database":
             db_name = data.get("database")
             if db_name:
-                # Run in a thread-safe manner if possible, or just directly given GIL
                 ui_switch_database(db_name)
+        
+        elif cmd_type == "launch_config":
+            # Launch the standalone config editor
+            try:
+                logging.info("Launching Config Editor...")
+                subprocess.Popen([sys.executable, 'tool_config_editor.py'])
+            except Exception as e:
+                logging.error(f"Failed to launch config editor: {e}")
+
+        elif cmd_type == "toggle_autoclick":
+            toggle_auto_click()
+            ui_broadcast_state()
+
+        elif cmd_type == "toggle_autoscan":
+            toggle_spam_capture_mode()
+            ui_broadcast_state()
+
     except Exception as e:
         logging.error(f"Error handling UI command: {e}", exc_info=True)
 
@@ -1777,8 +1795,31 @@ def get_ui_state():
     return {
         "type": "config_update",
         "active_database": active_database,
-        # Add other state vars here if needed
+        "auto_click": auto_click,
+        "auto_scan": spam_capture_mode
     }
+
+def ui_broadcast_state():
+    """Broadcast current state to all UI clients."""
+    if ui_server:
+        state = get_ui_state()
+        # Create a task to send the message safely
+        # Since we might be called from the main thread (keyboard listener)
+        # We need to bridge to the asyncio loop.
+        try:
+             # If ui_server has a valid loop and it's running
+             if hasattr(ui_server, 'loop') and ui_server.loop:
+                 asyncio.run_coroutine_threadsafe(ui_server.broadcast(json.dumps(state)), ui_server.loop)
+             else:
+                 # If we are IN the loop (e.g. handle_ui_command), we can just schedule it?
+                 if hasattr(ui_server, 'broadcast'):
+                     # We can't await here easily if we are sync.
+                     # But this method is usually called from sync context.
+                     pass 
+        except Exception as e:
+            logging.error(f"Broadcast failed: {e}")
+
+
 
 def run_ui_server():
     global ui_server

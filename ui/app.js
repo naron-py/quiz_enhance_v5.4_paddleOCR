@@ -57,6 +57,17 @@ function connectWebSocket() {
                         dbSelector.value = 'all';
                     }
                 }
+
+                // Update Icon States
+                if (data.auto_click !== undefined && autoClickBtn) {
+                    if (data.auto_click) autoClickBtn.classList.add('active');
+                    else autoClickBtn.classList.remove('active');
+                }
+
+                if (data.auto_scan !== undefined && autoScanBtn) {
+                    if (data.auto_scan) autoScanBtn.classList.add('active');
+                    else autoScanBtn.classList.remove('active');
+                }
             } else {
                 updateDisplay(data);
             }
@@ -155,7 +166,7 @@ function updateDisplay(data) {
                 // Calculate required width with ample padding
                 // Text Width + Padding + Extra safety margin
                 const textWidth = answerDisplay ? answerDisplay.scrollWidth : 200;
-                newWidth = Math.max(300, textWidth + 60);
+                newWidth = Math.max(380, textWidth + 60);
 
                 // Calculate height: Header + Content + padding
                 // Add 10px extra to strictly avoid vertical scrollbar usage
@@ -225,6 +236,29 @@ dbSelector.addEventListener('change', () => {
         console.error("WebSocket not connected - cannot switch database");
     }
 });
+
+// Tool Icons Logic
+const posBtn = document.getElementById('posBtn');
+const autoClickBtn = document.getElementById('autoClickBtn');
+const autoScanBtn = document.getElementById('autoScanBtn');
+
+if (posBtn) {
+    posBtn.addEventListener('click', () => {
+        if (ws) ws.send(JSON.stringify({ type: 'launch_config' }));
+    });
+}
+
+if (autoClickBtn) {
+    autoClickBtn.addEventListener('click', () => {
+        if (ws) ws.send(JSON.stringify({ type: 'toggle_autoclick' }));
+    });
+}
+
+if (autoScanBtn) {
+    autoScanBtn.addEventListener('click', () => {
+        if (ws) ws.send(JSON.stringify({ type: 'toggle_autoscan' }));
+    });
+}
 
 // Close window
 closeBtn.addEventListener('click', () => {
