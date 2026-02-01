@@ -45,26 +45,37 @@ class UIDetector:
                 aspect_ratio = w / float(h)
                 area = w * h
                 
-                # Heuristics:
-                # - Width must be at least 20% of screen width (it's a wide banner)
-                # - Height must be > 30px
-                # - Aspect ratio should be > 2.0 (wide rectangle)
-                if w > (width * 0.2) and h > 30 and aspect_ratio > 2.0:
+                # Heuristics (Relaxed):
+                # - Width must be at least 15% of ROI width
+                # - Height must be > 20px
+                # - Aspect ratio should be > 1.5
+                if w > (width * 0.15) and h > 20 and aspect_ratio > 1.5:
                     candidates.append((x, y, w, h))
             
+            best_box = None
             if candidates:
                 # Sort by Y position (find top-most box which is the Question)
-                # Secondary sort by Area (descending) just in case
                 candidates.sort(key=lambda b: (b[1], -b[2]*b[3]))
-                
-                # Verify the top candidate is not TOO close to the top edge (avoid status bars)
-                # But typically Question is the first wide brown box.
                 best_box = candidates[0]
                 
                 # DEBUG: Log if multiple candidates found
                 if len(candidates) > 1:
                      self.logger.debug(f"SmartVision: Found {len(candidates)} candidates. Selected Top: {best_box}")
+
+            # DEBUG: Save visualization
+            if True: # Always save for debugging user issue
+                debug_img = image_np.copy()
+                # Draw all candidates in Red
+                for (cx, cy, cw, ch) in candidates:
+                     cv2.rectangle(debug_img, (cx, cy), (cx+cw, cy+ch), (0, 0, 255), 1)
                 
+                # Draw Best Match in Green
+                if best_box:
+                    bx, by, bw, bh = best_box
+                    cv2.rectangle(debug_img, (bx, by), (bx+bw, by+bh), (0, 255, 0), 2)
+                    
+                cv2.imwrite("smart_vision_latest.png", debug_img)
+            
             return best_box
             
         except Exception as e:
