@@ -9,7 +9,7 @@ function createWindow() {
     height: 100,
     minWidth: 380,
     minHeight: 50,
-    maxWidth: 800,
+    maxWidth: 1600,
     maxHeight: 600,
     frame: false,
     transparent: true,
