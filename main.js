@@ -94,13 +94,13 @@ ipcMain.on('resize-window', (event, { width, height }) => {
     const heightDiff = Math.abs(currentSize[1] - height);
 
     // DEBUG LOGGING
-    require('fs').appendFileSync('ui_debug_log.txt', `[Main] Resize Request: ${width}x${height} | Current: ${currentSize[0]}x${currentSize[1]} | Diff: ${widthDiff}x${heightDiff}\n`);
+    // require('fs').appendFileSync('ui_debug_log.txt', `[Main] Resize Request: ${width}x${height} | Current: ${currentSize[0]}x${currentSize[1]} | Diff: ${widthDiff}x${heightDiff}\n`);
 
     if (heightDiff > 2 || widthDiff > 2) {
       mainWindow.setSize(width, height);
-      require('fs').appendFileSync('ui_debug_log.txt', `[Main] Applied Size: ${width}x${height}\n`);
+      // require('fs').appendFileSync('ui_debug_log.txt', `[Main] Applied Size: ${width}x${height}\n`);
     } else {
-      require('fs').appendFileSync('ui_debug_log.txt', `[Main] Skipped Resize (Diff too small)\n`);
+      // require('fs').appendFileSync('ui_debug_log.txt', `[Main] Skipped Resize (Diff too small)\n`);
     }
   }
 });
