@@ -168,10 +168,16 @@ function updateDisplay(data) {
                 // Measure intrinsic content width instead.
                 const measureSpan = document.createElement('span');
                 measureSpan.style.visibility = 'hidden';
+                measureSpan.style.position = 'absolute'; // Critical: Remove from flow
                 measureSpan.style.whiteSpace = 'nowrap';
-                measureSpan.style.font = window.getComputedStyle(document.querySelector('.answer-display')).font;
-                measureSpan.style.fontSize = '36px'; // Matches CSS
-                measureSpan.style.fontWeight = '500'; // Matches CSS
+                measureSpan.style.left = '-9999px';
+
+                // Copy styles accurately
+                const computed = window.getComputedStyle(document.querySelector('.answer-display'));
+                measureSpan.style.fontFamily = computed.fontFamily;
+                measureSpan.style.fontSize = computed.fontSize;
+                measureSpan.style.fontWeight = computed.fontWeight;
+                measureSpan.style.letterSpacing = computed.letterSpacing;
 
                 // Content: "A | Answer text"
                 const currentChoice = document.getElementById('choiceLetter').textContent;
