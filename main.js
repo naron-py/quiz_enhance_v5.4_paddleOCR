@@ -98,14 +98,21 @@ ipcMain.on('resize-window', (event, { width, height }) => {
 
     if (heightDiff > 2 || widthDiff > 2) {
       const bounds = mainWindow.getBounds();
-      // Try to force the new bounds at the current position. 
-      // Note: OS may still clamp if it goes offscreen, but setBounds is generally more robust.
-      mainWindow.setBounds({ x: bounds.x, y: bounds.y, width: width, height: height });
+      // "Left Anchor" Strategy:
+      // Force the specific X,Y to be exactly what they are now, 
+      // but demand the new Width/Height.
+      // This overrides weak OS "snap" suggestions to stop growing.
+      mainWindow.setBounds({
+        x: bounds.x,
+        y: bounds.y,
+        width: width,
+        height: height
+      });
 
       const newBounds = mainWindow.getBounds();
-      require('fs').appendFileSync('ui_debug_log.txt', `[Main] Attempted: ${width}x${height} at (${bounds.x},${bounds.y}) -> Result: ${newBounds.width}x${newBounds.height} at (${newBounds.x},${newBounds.y})\n`);
+      try { require('fs').appendFileSync('ui_debug_log.txt', `[Main] Attempted vs Result: ${width}x${height} -> ${newBounds.width}x${newBounds.height}\n`); } catch (e) { }
 
-      console.log(`[Main] Resized to ${width}x${height} at (${bounds.x},${bounds.y})`);
+      console.log(`[Main] Resized to ${width}x${height} FIXED at (${bounds.x},${bounds.y})`);
     } else {
       try { require('fs').appendFileSync('ui_debug_log.txt', `[Main] Skipped Resize (Diff too small)\n`); } catch (e) { }
     }
@@ -114,7 +121,7 @@ ipcMain.on('resize-window', (event, { width, height }) => {
 
 app.whenReady().then(() => {
   createWindow();
-  console.log("Main Process v6.0: Using setBounds + Safe Logging (Zombies Beware)");
+  console.log("Main Process v6.1: LEFT ANCHOR ENFORCED (Manual & Auto)");
 });
 
 app.on('window-all-closed', () => {
