@@ -9,6 +9,7 @@ let isGreenState = false; // Start White
 
 // Elements
 const app = document.getElementById('app');
+const dbSelector = document.getElementById('dbSelector');
 const expandBtn = document.getElementById('expandBtn');
 const pinBtn = document.getElementById('pinBtn');
 const closeBtn = document.getElementById('closeBtn');
@@ -44,7 +45,21 @@ function connectWebSocket() {
     ws.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            updateDisplay(data);
+            if (data.type === 'config_update') {
+                if (data.active_database && dbSelector) {
+                    console.log('Syncing DB state from backend:', data.active_database);
+                    let dbVal = data.active_database.toLowerCase();
+                    if (dbVal === 'default') dbVal = 'all'; // Fallback
+                    dbSelector.value = dbVal;
+
+                    // If it's still blank (invalid value), default to all
+                    if (!dbSelector.value) {
+                        dbSelector.value = 'all';
+                    }
+                }
+            } else {
+                updateDisplay(data);
+            }
         } catch (e) {
             console.error('Failed to parse message:', e);
         }
@@ -77,8 +92,10 @@ function updateDisplay(data) {
         }
 
         answerText.classList.remove('new-match');
+        choiceLetter.classList.remove('new-match');
         if (isGreenState) {
             answerText.classList.add('new-match');
+            choiceLetter.classList.add('new-match');
         }
 
         lastQuestion = currentQuestion;
@@ -192,6 +209,20 @@ ipcRenderer.on('always-on-top-changed', (event, isOnTop) => {
     } else {
         pinBtn.classList.remove('active');
         pinBtn.title = 'Pin on top';
+    }
+});
+
+// Database switcher
+dbSelector.addEventListener('change', () => {
+    const selectedDb = dbSelector.value;
+    console.log(`Switching database to: ${selectedDb}`);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'switch_database',
+            database: selectedDb
+        }));
+    } else {
+        console.error("WebSocket not connected - cannot switch database");
     }
 });
 

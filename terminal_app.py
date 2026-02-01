@@ -1724,6 +1724,62 @@ def show_help():
     print("------------------------")
 
 # Function to run the asyncio loop for WebSocket server
+def ui_switch_database(db_name):
+    """Switch active database triggered by UI."""
+    global active_database, config, questions_df, tfidf_vectorizer, tfidf_matrix
+    
+    valid_dbs = ['magic', 'muggle', 'all', 'default']
+    if db_name not in valid_dbs:
+        logging.warning(f"Invalid database requested by UI: {db_name}")
+        return
+
+    console.print(f"[yellow]UI requested switch to database: {db_name}[/yellow]")
+    
+    # Update config
+    active_database = db_name
+    config['active_database'] = db_name
+    
+    # Reload Data
+    try:
+        # Load Questions
+        questions_df = load_questions_data()
+        
+        # Rebuild TF-IDF
+        console.print("[cyan]Rebuilding TF-IDF index...[/cyan]")
+        cached = load_tfidf_cache(active_database)
+        if cached:
+            tfidf_vectorizer, tfidf_matrix = cached
+            logging.info("Loaded TF-IDF from cache.")
+        else:
+            # We assume build_tfidf_index exists based on context usage
+            tfidf_vectorizer, tfidf_matrix = build_tfidf_index(questions_df)
+            save_tfidf_cache(active_database, tfidf_vectorizer, tfidf_matrix)
+
+        console.print(f"[green]Database switched to: {active_database}[/green]")
+    except Exception as e:
+        console.print(f"[bold red]Failed to switch database: {e}[/bold red]")
+        logging.error(f"Failed to switch database: {e}", exc_info=True)
+
+def handle_ui_command(data):
+    """Handle commands received from the UI."""
+    try:
+        cmd_type = data.get("type")
+        if cmd_type == "switch_database":
+            db_name = data.get("database")
+            if db_name:
+                # Run in a thread-safe manner if possible, or just directly given GIL
+                ui_switch_database(db_name)
+    except Exception as e:
+        logging.error(f"Error handling UI command: {e}", exc_info=True)
+
+def get_ui_state():
+    """Return current state for UI initialization."""
+    return {
+        "type": "config_update",
+        "active_database": active_database,
+        # Add other state vars here if needed
+    }
+
 def run_ui_server():
     global ui_server
     if HAS_UI_SERVER:
@@ -1731,6 +1787,11 @@ def run_ui_server():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             ui_server = UIServer(port=8765)
+            # Register callback for UI commands
+            ui_server.set_callback(handle_ui_command)
+            # Register state provider for initial sync
+            ui_server.set_state_provider(get_ui_state)
+            
             # Store instance globally so ui_helper can access it
             import ui_server as server_module
             server_module.current_server = ui_server
@@ -1749,19 +1810,19 @@ if __name__ == "__main__":
     parser.add_argument('--ui-mode', action='store_true', help='Run in UI mode (starts WebSocket server)')
     args = parser.parse_args()
 
-    # Start WebSocket server thread if in UI mode
-    if HAS_UI_SERVER and args.ui_mode:
-        ui_thread = threading.Thread(target=run_ui_server, daemon=True)
-        ui_thread.start()
-        print("UI Server started in background.")
-
     # Banner
     console.print("[bold cyan]====================================[/bold cyan]")
     console.print("[bold cyan]     HPMA Quiz Assistant v1.4.2    [/bold cyan]")
     console.print("[bold cyan]====================================[/bold cyan]")
     
-    # Initialize the application
+    # Initialize the application (Load config/DBs BEFORE UI starts)
     initialize()
+
+    # Start WebSocket server thread if in UI mode
+    if HAS_UI_SERVER and args.ui_mode:
+        ui_thread = threading.Thread(target=run_ui_server, daemon=True)
+        ui_thread.start()
+        print("UI Server started in background.")
     
     # Set up keyboard listener
     print("\nStarting keyboard listener...")

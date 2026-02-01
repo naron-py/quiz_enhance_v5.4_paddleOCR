@@ -16,10 +16,26 @@ class UIServer:
         self.port = port
         self.clients = set()
         self.server = None
+        self.command_callback = None
+        self.state_provider = None
+        
+    def set_callback(self, callback):
+        self.command_callback = callback
+
+    def set_state_provider(self, provider):
+        self.state_provider = provider
         
     async def register(self, websocket):
         self.clients.add(websocket)
         logger.info(f"UI client connected. Total clients: {len(self.clients)}")
+        # Send initial state on connection
+        if self.state_provider:
+            try:
+                state = self.state_provider()
+                if state:
+                    await websocket.send(json.dumps(state))
+            except Exception as e:
+                logger.error(f"Failed to send initial state: {e}")
         
     async def unregister(self, websocket):
         self.clients.remove(websocket)
@@ -37,8 +53,15 @@ class UIServer:
         await self.register(websocket)
         try:
             async for message in websocket:
-                # Handle incoming messages from UI if needed
-                pass
+                try:
+                    data = json.loads(message)
+                    if self.command_callback:
+                        # Execute callback with parsed data
+                        self.command_callback(data)
+                except json.JSONDecodeError:
+                    print(f"DEBUG: Failed to parse incoming message: {message}")
+                except Exception as e:
+                    print(f"DEBUG: Error handling message: {e}")
         except websockets.exceptions.ConnectionClosed:
             pass
         finally:
