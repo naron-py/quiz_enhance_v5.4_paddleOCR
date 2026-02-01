@@ -164,9 +164,27 @@ function updateDisplay(data) {
                 const answerDisplay = document.querySelector('.answer-display');
 
                 // Calculate required width with ample padding
-                // Text Width + Padding + Extra safety margin
-                const textWidth = answerDisplay ? answerDisplay.scrollWidth : 200;
-                newWidth = Math.max(380, textWidth + 60);
+                // FIX: flex:1 causes scrollWidth to match window width (ratchet effect).
+                // Measure intrinsic content width instead.
+                const measureSpan = document.createElement('span');
+                measureSpan.style.visibility = 'hidden';
+                measureSpan.style.whiteSpace = 'nowrap';
+                measureSpan.style.font = window.getComputedStyle(document.querySelector('.answer-display')).font;
+                measureSpan.style.fontSize = '36px'; // Matches CSS
+                measureSpan.style.fontWeight = '500'; // Matches CSS
+
+                // Content: "A | Answer text"
+                const currentChoice = document.getElementById('choiceLetter').textContent;
+                const currentAnswer = document.getElementById('answerText').textContent;
+                measureSpan.textContent = `${currentChoice} | ${currentAnswer}`;
+
+                document.body.appendChild(measureSpan);
+                const textWidth = measureSpan.offsetWidth;
+                document.body.removeChild(measureSpan);
+
+                // Add padding for header (icons) + container padding + safety
+                // Header icons take up ~150px. Text is separate.
+                newWidth = Math.max(380, textWidth + 100);
 
                 // Calculate height: Header + Content + padding
                 // Add 10px extra to strictly avoid vertical scrollbar usage
