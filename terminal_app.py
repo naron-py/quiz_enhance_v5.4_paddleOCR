@@ -1800,7 +1800,7 @@ def ui_switch_database(db_name):
             logging.info("Loaded TF-IDF from cache.")
         else:
             # We assume build_tfidf_index exists based on context usage
-            tfidf_vectorizer, tfidf_matrix = build_tfidf_index(questions_df)
+            tfidf_vectorizer, tfidf_matrix = compute_tfidf_matrix(questions_df)
             save_tfidf_cache(active_database, tfidf_vectorizer, tfidf_matrix)
 
         console.print(f"[green]Database switched to: {active_database}[/green]")
