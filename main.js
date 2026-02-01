@@ -107,12 +107,15 @@ ipcMain.on('resize-window', (event, { width, height }) => {
 
       console.log(`[Main] Resized to ${width}x${height} at (${bounds.x},${bounds.y})`);
     } else {
-      require('fs').appendFileSync('ui_debug_log.txt', `[Main] Skipped Resize (Diff too small)\n`);
+      try { require('fs').appendFileSync('ui_debug_log.txt', `[Main] Skipped Resize (Diff too small)\n`); } catch (e) { }
     }
   }
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  console.log("Main Process v6.0: Using setBounds + Safe Logging (Zombies Beware)");
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
