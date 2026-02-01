@@ -144,8 +144,8 @@ function updateDisplay(data) {
         matchScore.textContent = `Score: ${(data.score * 100).toFixed(1)}%`;
     }
 
-    // Auto-resize logic extracted for double-pass
-    const triggerResize = () => {
+    // Auto-resize window to fit content
+    setTimeout(() => {
         const bodyStyle = window.getComputedStyle(document.body);
         let newHeight = 0;
         let newWidth = 0;
@@ -190,10 +190,6 @@ function updateDisplay(data) {
                 // DEBUG LOGGING
                 try { require('fs').appendFileSync('ui_debug_log.txt', `[Renderer] Content: "${currentChoice} | ${currentAnswer}" | TextWidth: ${textWidth} | CalcWidth: ${newWidth}\n`); } catch (e) { }
 
-                // Add padding for header (icons) + container padding + safety
-                // Header icons take up ~150px. Text is separate.
-                newWidth = Math.max(380, textWidth + 100);
-
                 // Calculate height: Header + Content + padding
                 // Add 10px extra to strictly avoid vertical scrollbar usage
                 newHeight = header.offsetHeight + content.offsetHeight + 10;
@@ -205,14 +201,7 @@ function updateDisplay(data) {
             width: Math.ceil(newWidth),
             height: Math.ceil(newHeight)
         });
-    };
-
-    // First Pass: Attempt to expand width (and potentially height if wrapped)
-    setTimeout(triggerResize, 50);
-
-    // Second Pass: If width succeeded, text un-wrapped, so we shrink height.
-    // If width failed (clamped), text stays wrapped, so we keep height.
-    setTimeout(triggerResize, 350);
+    }, 50);
 }
 
 // Toggle expand/collapse

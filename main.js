@@ -9,7 +9,7 @@ function createWindow() {
     height: 100,
     minWidth: 380,
     minHeight: 50,
-    maxWidth: 1600,
+    maxWidth: 5000,
     maxHeight: 600,
     frame: false,
     transparent: true,
@@ -25,8 +25,8 @@ function createWindow() {
 
   // AGGRESSIVE FIX: Force max constraints
   mainWindow.setMinimumSize(380, 50);
-  mainWindow.setMaximumSize(1600, 600);
-  console.log("Main Process v5.6: Window Constraints Applied (Max 1600px)");
+  mainWindow.setMaximumSize(5000, 600); // Expanded for "Infinite Right"
+  console.log("Main Process v6.2: Infinite Right (Max 5000px) + Left Anchor");
 
   // Enable DevTools for debugging (disabled for production)
   // mainWindow.webContents.openDevTools();
