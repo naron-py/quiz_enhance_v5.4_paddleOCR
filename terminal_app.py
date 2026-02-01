@@ -1057,11 +1057,20 @@ def capture_and_process():
                 
                 # FIX: Send No Match to UI
                 best_match = {
-                    'matched_choice': '-',
+                    'matched_choice': '?',
                     'matched_answer': 'No Database Match',
                     'db_question': ocr_question_text,
                     'score': 0.0
                 }
+                
+                # Ensure UI gets the update immediately
+                send_to_ui(
+                    matched_choice='?',
+                    matched_answer='No Database Match',
+                    question=ocr_question_text,
+                    answers=recognized_text.get('answers', {}),
+                    score=0.0
+                )
 
                 # Error panel for no match
                 no_match_panel = Panel(
@@ -1094,6 +1103,22 @@ def capture_and_process():
             match_end = time.time() # Still record time even if no match attempted
             timings['matching'] = match_end - match_start
             reset_last_auto_clicked_pair()
+            
+            # Update UI even if no text found, to show we are alive (only in spam mode)
+            if spam_capture_mode:
+                best_match = {
+                    'matched_choice': '-',
+                    'matched_answer': 'Scanning... (No Text)',
+                    'db_question': 'Waiting for question...',
+                    'score': 0.0
+                }
+                send_to_ui(
+                    matched_choice='-',
+                    matched_answer='Scanning... (No Text)',
+                    question='Waiting for question...',
+                    answers={},
+                    score=0.0
+                )
 
         # Store a stable OCR snapshot for UI polling.
         if recognized_text.get('question'):

@@ -37,7 +37,7 @@ class OCRProcessor:
                 ppocr_logging.getLogger('ppocr').setLevel(ppocr_logging.WARNING)
             
             # Initialize PaddleOCR
-            # use_angle_cls=True allows detecting text at angles
+            # use_angle_cls=False for speed (Game text is horizontal)
             # lang='en' for English
             # Set device explicitly via paddle
             # Bypass model source connectivity check to avoid torch import issues
@@ -48,7 +48,7 @@ class OCRProcessor:
             else:
                 paddle.device.set_device('cpu')
                 
-            self.model = PaddleOCR(use_angle_cls=True, lang='en')
+            self.model = PaddleOCR(use_angle_cls=False, lang='en')
             
             self.logger.info(f"PaddleOCR initialized (GPU={self.use_gpu})")
         except Exception as e:
@@ -217,7 +217,7 @@ class OCRProcessor:
             
             for name, img in zip(valid_names, valid_images):
                 try:
-                    res = self.model.ocr(img, cls=True)
+                    res = self.model.ocr(img, cls=False)
                     parts = []
                     if res and res[0]:
                         for line in res[0]:
