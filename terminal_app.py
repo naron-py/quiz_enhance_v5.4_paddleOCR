@@ -25,6 +25,14 @@ from datetime import datetime # Added for timestamped filenames
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
+import asyncio
+import argparse
+
+# Optional UI server imports (only needed for Electron UI mode)
+# Optional UI server imports (only needed for Electron UI mode)
+from ui_server import UIServer
+from ui_helper import send_to_ui
+HAS_UI_SERVER = True
 
 # Import Rich for colored terminal output
 from rich.console import Console
@@ -98,6 +106,7 @@ last_ocr_snapshot = {}
 best_match = None
 tfidf_vectorizer = None
 tfidf_matrix = None
+ui_server = None  # WebSocket server for Electron UI
 timings = {}
 auto_click = False  # Whether to automatically click on the answer
 hotkeys = {}
@@ -968,6 +977,15 @@ def capture_and_process():
                         title="[bold green]Match Found[/bold green]",
                         border_style="green"
                     )
+                    
+                    # FIX: Populate best_match for UI
+                    best_match = {
+                        'matched_choice': best_match_choice,
+                        'matched_answer': match_a,
+                        'db_question': match_q,
+                        'score': best_match_similarity
+                    }
+                    
                     console.print(match_panel)
 
                     if auto_click_console_message:
@@ -1043,6 +1061,16 @@ def capture_and_process():
                 reset_last_auto_clicked_pair()
             match_end = time.time()
             timings['matching'] = match_end - match_start
+            
+            # Send results to Electron UI if available
+            if best_match:
+                send_to_ui(
+                    matched_choice=best_match.get('matched_choice'),
+                    matched_answer=best_match.get('matched_answer'),
+                    question=best_match.get('db_question'),
+                    answers=recognized_text.get('answers', {}),
+                    score=best_match.get('score', 0.0)
+                )
         else:
             logging.warning("Skipping match finding: OCR question text is empty or database/TF-IDF not loaded.")
             # Wrap console print in try-except to handle potential NoneType during shutdown
@@ -1679,8 +1707,38 @@ def show_help():
     print(" exit           : Exit the application.")
     print("------------------------")
 
+# Function to run the asyncio loop for WebSocket server
+def run_ui_server():
+    global ui_server
+    if HAS_UI_SERVER:
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            ui_server = UIServer(port=8765)
+            # Store instance globally so ui_helper can access it
+            import ui_server as server_module
+            server_module.current_server = ui_server
+            print(f"DEBUG: Global UI Server set in {server_module}")
+            
+            loop.run_until_complete(ui_server.start_server())
+            logging.info("UI WebSocket server started in background thread")
+            loop.run_forever()
+        except Exception as e:
+            logging.error(f"Failed to start UI server: {e}")
+
 # Initialize at module level
 if __name__ == "__main__":
+    # Parse arguments first
+    parser = argparse.ArgumentParser(description="OCR Quiz Assistant")
+    parser.add_argument('--ui-mode', action='store_true', help='Run in UI mode (starts WebSocket server)')
+    args = parser.parse_args()
+
+    # Start WebSocket server thread if in UI mode
+    if HAS_UI_SERVER and args.ui_mode:
+        ui_thread = threading.Thread(target=run_ui_server, daemon=True)
+        ui_thread.start()
+        print("UI Server started in background.")
+
     # Banner
     console.print("[bold cyan]====================================[/bold cyan]")
     console.print("[bold cyan]     HPMA Quiz Assistant v1.4.2    [/bold cyan]")

@@ -1,0 +1,185 @@
+const { ipcRenderer } = require('electron');
+
+// State
+let isExpanded = false;
+let isPinned = false;
+
+// Elements
+const app = document.getElementById('app');
+const expandBtn = document.getElementById('expandBtn');
+const pinBtn = document.getElementById('pinBtn');
+const closeBtn = document.getElementById('closeBtn');
+
+// Minimal view elements
+const choiceLetter = document.getElementById('choiceLetter');
+const answerText = document.getElementById('answerText');
+
+// Expanded view elements
+const questionText = document.getElementById('questionText');
+const answerA = document.getElementById('answerA');
+const answerB = document.getElementById('answerB');
+const answerC = document.getElementById('answerC');
+const answerD = document.getElementById('answerD');
+const matchScore = document.getElementById('matchScore');
+
+// Listen for mock data from main process (for testing) - MUST BE BEFORE OTHER CODE
+ipcRenderer.on('ocr-result', (event, data) => {
+    console.log('Received data:', data);
+    updateDisplay(data);
+});
+
+// WebSocket connection to Python backend
+let ws = null;
+
+function connectWebSocket() {
+    ws = new WebSocket('ws://localhost:8765');
+
+    ws.onopen = () => {
+        console.log('Connected to backend');
+    };
+
+    ws.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            updateDisplay(data);
+        } catch (e) {
+            console.error('Failed to parse message:', e);
+        }
+    };
+
+    ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
+
+    ws.onclose = () => {
+        console.log('Disconnected from backend, reconnecting...');
+        setTimeout(connectWebSocket, 3000);
+    };
+}
+
+function updateDisplay(data) {
+    // Update minimal view
+    if (data.matched_choice) {
+        choiceLetter.textContent = data.matched_choice;
+        answerText.textContent = data.matched_answer || 'No match';
+    }
+
+    // Update expanded view
+    if (data.question) {
+        questionText.textContent = data.question;
+    }
+
+    if (data.answers) {
+        answerA.textContent = `A: ${data.answers.A || '-'}`;
+        answerB.textContent = `B: ${data.answers.B || '-'}`;
+        answerC.textContent = `C: ${data.answers.C || '-'}`;
+        answerD.textContent = `D: ${data.answers.D || '-'}`;
+
+        // Highlight matched answer
+        [answerA, answerB, answerC, answerD].forEach(el => {
+            el.classList.remove('matched');
+        });
+
+        if (data.matched_choice) {
+            const matchedEl = document.getElementById(`answer${data.matched_choice}`);
+            if (matchedEl) {
+                matchedEl.classList.add('matched');
+            }
+        }
+    }
+
+    if (data.score !== undefined) {
+        matchScore.textContent = `Score: ${(data.score * 100).toFixed(1)}%`;
+    }
+
+    // Auto-resize window to fit content
+    setTimeout(() => {
+        const bodyStyle = window.getComputedStyle(document.body);
+
+        let newHeight = 0;
+        let newWidth = 0;
+
+        // If expanded, use fixed width but dynamic height
+        if (app.classList.contains('expanded')) {
+            newHeight = app.scrollHeight + 20; // Add padding
+            newWidth = 500;
+        } else {
+            // For minimal, fit both width and height to content
+            const content = document.querySelector('.minimal .content');
+            const header = document.querySelector('.header');
+
+            if (content && header) {
+                const answerDisplay = document.querySelector('.answer-display');
+
+                // Calculate required width with ample padding
+                // Text Width + Padding + Extra safety margin
+                const textWidth = answerDisplay ? answerDisplay.scrollWidth : 200;
+                newWidth = Math.max(300, textWidth + 60);
+
+                // Calculate height: Header + Content + padding
+                // Add 10px extra to strictly avoid vertical scrollbar usage
+                newHeight = header.offsetHeight + content.offsetHeight + 10;
+            }
+        }
+
+        // Send resize request
+        ipcRenderer.send('resize-window', {
+            width: Math.ceil(newWidth),
+            height: Math.ceil(newHeight)
+        });
+    }, 50);
+}
+
+// Toggle expand/collapse
+expandBtn.addEventListener('click', () => {
+    isExpanded = !isExpanded;
+
+    if (isExpanded) {
+        app.classList.add('expanded');
+        expandBtn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>
+      </svg>
+    `;
+        expandBtn.title = 'Collapse';
+        // Trigger resize after transition
+        setTimeout(() => updateDisplay({}), 200);
+    } else {
+        app.classList.remove('expanded');
+        expandBtn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+      </svg>
+    `;
+        expandBtn.title = 'Expand';
+    }
+});
+
+// Toggle always on top
+pinBtn.addEventListener('click', () => {
+    ipcRenderer.send('toggle-always-on-top');
+});
+
+ipcRenderer.on('always-on-top-changed', (event, isOnTop) => {
+    isPinned = isOnTop;
+    if (isPinned) {
+        pinBtn.classList.add('active');
+        pinBtn.title = 'Unpin';
+    } else {
+        pinBtn.classList.remove('active');
+        pinBtn.title = 'Pin on top';
+    }
+});
+
+// Close window
+closeBtn.addEventListener('click', () => {
+    ipcRenderer.send('close');
+});
+
+// Connect to backend on startup
+connectWebSocket();
+
+// Request mock data (Disabled for production)
+// setTimeout(() => {
+//     ipcRenderer.send('request-mock-data');
+// }, 3000);

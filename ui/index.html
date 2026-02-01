@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Quiz Assistant</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div id="app" class="minimal">
+    <!-- Resize Handles -->
+    <div class="resize-handle top"></div>
+    <div class="resize-handle bottom"></div>
+    <div class="resize-handle left"></div>
+    <div class="resize-handle right"></div>
+    <div class="resize-handle top-left"></div>
+    <div class="resize-handle top-right"></div>
+    <div class="resize-handle bottom-left"></div>
+    <div class="resize-handle bottom-right"></div>
+
+    <!-- Header with controls -->
+    <div class="header">
+      <div class="drag-handle"></div>
+      <div class="controls">
+        <button id="pinBtn" class="control-btn" title="Pin on top">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M12 2v20M17 7l-5 5-5-5" />
+          </svg>
+        </button>
+        <button id="expandBtn" class="control-btn" title="Expand">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+          </svg>
+        </button>
+        <button id="closeBtn" class="control-btn close" title="Close">×</button>
+      </div>
+    </div>
+
+    <!-- Minimal View -->
+    <div class="content minimal-view">
+      <div class="answer-display">
+        <span class="choice" id="choiceLetter">-</span>
+        <span class="separator">:</span>
+        <span class="answer" id="answerText">Ready</span>
+      </div>
+    </div>
+
+    <!-- Expanded View -->
+    <div class="content expanded-view" style="display: none;">
+      <div class="question-section">
+        <div class="label">Question:</div>
+        <div class="text" id="questionText">-</div>
+      </div>
+      <div class="answers-section">
+        <div class="answer-item" id="answerA">A: -</div>
+        <div class="answer-item" id="answerB">B: -</div>
+        <div class="answer-item" id="answerC">C: -</div>
+        <div class="answer-item" id="answerD">D: -</div>
+      </div>
+      <div class="match-info">
+        <span class="score" id="matchScore">Score: -</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

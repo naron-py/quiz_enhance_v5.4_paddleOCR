@@ -1,0 +1,25 @@
+{
+  "name": "quiz_enhance_v5",
+  "version": "1.0.0",
+  "description": "A high-performance OCR-powered quiz assistant using PaddleOCR for accurate and fast text recognition.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/naron-py/quiz_enhance_v5.4_paddleOCR.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/naron-py/quiz_enhance_v5.4_paddleOCR/issues"
+  },
+  "homepage": "https://github.com/naron-py/quiz_enhance_v5.4_paddleOCR#readme",
+  "devDependencies": {
+    "electron": "^40.1.0",
+    "electron-builder": "^26.4.0"
+  }
+}

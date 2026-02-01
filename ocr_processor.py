@@ -1,5 +1,13 @@
-from paddleocr import PaddleOCR
-import paddle
+import sys
+try:
+    from paddleocr import PaddleOCR
+    import paddle
+except ImportError as e:
+    import logging
+    logging.error(f"Failed to import paddleocr. Executable: {sys.executable}")
+    logging.error(f"Sys Path: {sys.path}")
+    raise e
+
 import os
 import cv2
 import numpy as np

@@ -1,0 +1,294 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: transparent;
+  overflow: hidden !important;
+  /* Prevent window-level scrollbars */
+  margin: 0;
+  padding: 0;
+}
+
+#app {
+  background: rgba(20, 20, 30, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden !important;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  /* For absolute resize handles */
+}
+
+#app.expanded {
+  border-radius: 8px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  -webkit-app-region: drag;
+  z-index: 10;
+}
+
+/* Resize Handles */
+.resize-handle {
+  position: absolute;
+  z-index: 100;
+  -webkit-app-region: no-drag;
+}
+
+.resize-handle.top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resize-handle.bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resize-handle.left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.resize-handle.right {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.resize-handle.top-left {
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+  z-index: 101;
+}
+
+.resize-handle.top-right {
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+  z-index: 101;
+}
+
+.resize-handle.bottom-left {
+  bottom: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+  z-index: 101;
+}
+
+.resize-handle.bottom-right {
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+  z-index: 101;
+}
+
+.drag-handle {
+  flex: 1;
+  height: 20px;
+  -webkit-app-region: drag;
+}
+
+.controls {
+  display: flex;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.control-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #fff;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-size: 16px;
+}
+
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.control-btn.close:hover {
+  background: rgba(255, 59, 48, 0.8);
+}
+
+.control-btn.active {
+  background: rgba(52, 199, 89, 0.8);
+}
+
+/* Minimal View */
+.minimal .content {
+  padding: 12px 16px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  overflow: hidden !important;
+  /* Force hide scrollbar */
+  white-space: nowrap;
+  /* Keep text on one line */
+}
+
+/* Eradicate scrollbars in minimal mode */
+.minimal ::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.answer-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 36px;
+  /* Doubled from 18px */
+}
+
+.choice {
+  color: #5E5CE6;
+  font-weight: bold;
+  font-size: 44px;
+  /* Doubled from 22px */
+  min-width: 40px;
+}
+
+.separator {
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 300;
+  font-size: 36px;
+}
+
+.answer {
+  color: #fff;
+  font-weight: 500;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Expanded View */
+.expanded #app {
+  height: auto !important;
+}
+
+.expanded .minimal-view {
+  display: none !important;
+}
+
+.expanded .expanded-view {
+  display: block !important;
+}
+
+/* Custom scrollbar for expanded view */
+.expanded-view::-webkit-scrollbar {
+  width: 8px;
+}
+
+.expanded-view::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.expanded-view::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.expanded-view::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.expanded-view {
+  padding: 16px;
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.question-section,
+.answers-section {
+  margin-bottom: 16px;
+}
+
+.label {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.text {
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.answer-item {
+  padding: 10px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.answer-item.matched {
+  background: rgba(52, 199, 89, 0.2);
+  border-color: rgba(52, 199, 89, 0.5);
+  font-weight: 600;
+}
+
+.match-info {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.score {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
