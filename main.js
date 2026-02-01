@@ -97,10 +97,13 @@ ipcMain.on('resize-window', (event, { width, height }) => {
     // require('fs').appendFileSync('ui_debug_log.txt', `[Main] Resize Request: ${width}x${height} | Current: ${currentSize[0]}x${currentSize[1]} | Diff: ${widthDiff}x${heightDiff}\n`);
 
     if (heightDiff > 2 || widthDiff > 2) {
-      mainWindow.setSize(width, height);
-      // require('fs').appendFileSync('ui_debug_log.txt', `[Main] Applied Size: ${width}x${height}\n`);
+      const bounds = mainWindow.getBounds();
+      // Try to force the new bounds at the current position. 
+      // Note: OS may still clamp if it goes offscreen, but setBounds is generally more robust.
+      mainWindow.setBounds({ x: bounds.x, y: bounds.y, width: width, height: height });
+      console.log(`[Main] Resized to ${width}x${height} at (${bounds.x},${bounds.y})`);
     } else {
-      // require('fs').appendFileSync('ui_debug_log.txt', `[Main] Skipped Resize (Diff too small)\n`);
+      // console.log(`[Main] Skipped resize (diff too small)`);
     }
   }
 });
