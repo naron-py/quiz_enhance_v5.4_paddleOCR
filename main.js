@@ -23,6 +23,11 @@ function createWindow() {
 
   mainWindow.loadFile('ui/index.html');
 
+  // AGGRESSIVE FIX: Force max constraints
+  mainWindow.setMinimumSize(380, 50);
+  mainWindow.setMaximumSize(1600, 600);
+  console.log("Main Process v5.6: Window Constraints Applied (Max 1600px)");
+
   // Enable DevTools for debugging (disabled for production)
   // mainWindow.webContents.openDevTools();
 
