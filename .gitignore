@@ -11,3 +11,4 @@ venv/
 .cache/
 not_found_pic/
 node_modules/
+_trash/
