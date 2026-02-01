@@ -205,6 +205,12 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 0.3s ease;
+}
+
+.answer.new-match {
+  color: #4ade80;
+  /* Green for new match */
 }
 
 /* Expanded View */

@@ -3,6 +3,9 @@ const { ipcRenderer } = require('electron');
 // State
 let isExpanded = false;
 let isPinned = false;
+let lastQuestion = null;
+let lastAnswer = null;
+let isGreenState = false; // Start White
 
 // Elements
 const app = document.getElementById('app');
@@ -58,8 +61,29 @@ function connectWebSocket() {
 }
 
 function updateDisplay(data) {
-    // Update minimal view
     if (data.matched_choice) {
+        // Change Detection
+        const currentQuestion = data.question;
+        const currentAnswer = data.matched_answer;
+
+        // Toggle Logic:
+        // New Question -> Flip Color (White <-> Green)
+        // Same Question -> Keep Color
+        if (lastQuestion && currentQuestion !== lastQuestion) {
+            isGreenState = !isGreenState;
+        } else if (!lastQuestion) {
+            // First run: Force White (or user preference)
+            isGreenState = false;
+        }
+
+        answerText.classList.remove('new-match');
+        if (isGreenState) {
+            answerText.classList.add('new-match');
+        }
+
+        lastQuestion = currentQuestion;
+        lastAnswer = currentAnswer;
+
         choiceLetter.textContent = data.matched_choice;
         answerText.textContent = data.matched_answer || 'No match';
     }

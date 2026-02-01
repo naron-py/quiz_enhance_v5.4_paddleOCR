@@ -1025,6 +1025,14 @@ def capture_and_process():
                     console.print(error_panel)
                     console.print(possible_answers)
                     
+                    # FIX: Even if choice matching failed, send the best DB answer to UI
+                    best_match = {
+                        'matched_choice': '-',
+                        'matched_answer': matching_entries[0]['answer'],
+                        'db_question': matching_entries[0]['question'],
+                        'score': best_match_similarity
+                    }
+                    
                     # Save fullscreen capture for question matched but no choice matched
                     if config.get('capture_fullscreen_on_nomatch', False):
                         capture_and_save_fullscreen_on_nomatch()
@@ -1046,6 +1054,14 @@ def capture_and_process():
                             )
             else: # No matching questions found
                 logging.warning(f"No database match found for OCR question: '{ocr_question_text}'")
+                
+                # FIX: Send No Match to UI
+                best_match = {
+                    'matched_choice': '-',
+                    'matched_answer': 'No Database Match',
+                    'db_question': ocr_question_text,
+                    'score': 0.0
+                }
 
                 # Error panel for no match
                 no_match_panel = Panel(

@@ -42,7 +42,7 @@
     "filter_answer_choice_tags": false,
     "save_all_captured_images": false,
     "spam_capture_deduplication": true,
-    "active_database": "magic",
+    "active_database": "all",
     "filter_selected_pattern": true,
     "log_level": "ERROR",
     "image_scale_factor": 1.0,
