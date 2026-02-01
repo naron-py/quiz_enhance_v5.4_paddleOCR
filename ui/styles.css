@@ -208,8 +208,8 @@ body {
   align-items: center;
   overflow: hidden !important;
   /* Force hide scrollbar */
-  white-space: nowrap;
-  /* Keep text on one line */
+  white-space: normal;
+  /* Allow text to wrap */
 }
 
 /* Eradicate scrollbars in minimal mode */
@@ -250,9 +250,13 @@ body {
   color: #fff;
   font-weight: 500;
   flex: 1;
-  white-space: nowrap;
+  white-space: normal;
+  /* Allow wrap */
+  word-wrap: break-word;
+  /* Break long words */
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
+  /* Ellipsis doesn't work well with wrap */
   transition: color 0.3s ease;
 }
 

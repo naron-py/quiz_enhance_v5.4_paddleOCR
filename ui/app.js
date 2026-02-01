@@ -144,10 +144,9 @@ function updateDisplay(data) {
         matchScore.textContent = `Score: ${(data.score * 100).toFixed(1)}%`;
     }
 
-    // Auto-resize window to fit content
-    setTimeout(() => {
+    // Auto-resize logic extracted for double-pass
+    const triggerResize = () => {
         const bodyStyle = window.getComputedStyle(document.body);
-
         let newHeight = 0;
         let newWidth = 0;
 
@@ -161,15 +160,11 @@ function updateDisplay(data) {
             const header = document.querySelector('.header');
 
             if (content && header) {
-                const answerDisplay = document.querySelector('.answer-display');
-
-                // Calculate required width with ample padding
-                // FIX: flex:1 causes scrollWidth to match window width (ratchet effect).
                 // Measure intrinsic content width instead.
                 const measureSpan = document.createElement('span');
                 measureSpan.style.visibility = 'hidden';
-                measureSpan.style.position = 'absolute'; // Critical: Remove from flow
-                measureSpan.style.whiteSpace = 'nowrap';
+                measureSpan.style.position = 'absolute';
+                measureSpan.style.whiteSpace = 'nowrap'; // Always measure ideal single-line width
                 measureSpan.style.left = '-9999px';
 
                 // Copy styles accurately
@@ -193,8 +188,7 @@ function updateDisplay(data) {
                 newWidth = Math.max(380, textWidth + 100);
 
                 // DEBUG LOGGING
-                require('fs').appendFileSync('ui_debug_log.txt', `[Renderer] Content: "${currentChoice} | ${currentAnswer}" | TextWidth: ${textWidth} | CalcWidth: ${newWidth}\n`);
-                document.body.removeChild(measureSpan);
+                try { require('fs').appendFileSync('ui_debug_log.txt', `[Renderer] Content: "${currentChoice} | ${currentAnswer}" | TextWidth: ${textWidth} | CalcWidth: ${newWidth}\n`); } catch (e) { }
 
                 // Add padding for header (icons) + container padding + safety
                 // Header icons take up ~150px. Text is separate.
@@ -211,7 +205,14 @@ function updateDisplay(data) {
             width: Math.ceil(newWidth),
             height: Math.ceil(newHeight)
         });
-    }, 50);
+    };
+
+    // First Pass: Attempt to expand width (and potentially height if wrapped)
+    setTimeout(triggerResize, 50);
+
+    // Second Pass: If width succeeded, text un-wrapped, so we shrink height.
+    // If width failed (clamped), text stays wrapped, so we keep height.
+    setTimeout(triggerResize, 350);
 }
 
 // Toggle expand/collapse
